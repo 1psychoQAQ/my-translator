@@ -57,7 +57,7 @@
 | 实现 `ScreenshotService` | 截图区域选择 |
 | 实现 `OCRService` | Vision 文字识别 |
 | 实现 `TranslationService` | Apple Translation |
-| 实现截图翻译流程 | Cmd+Shift+T → OCR → 翻译 → 悬浮窗 |
+| 实现截图翻译流程 | fn+F1 → OCR → 翻译 → 悬浮窗 |
 | 实现 `WordBookManager` | SwiftData CRUD |
 | 实现单词本 UI | 列表/搜索/删除 |
 
