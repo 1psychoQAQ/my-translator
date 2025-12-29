@@ -261,26 +261,28 @@ struct WordBookView: View {
 
 ## 验收检查清单
 
-### Phase 1: 截图翻译 + 单词本
+### Phase 1: 截图翻译 + 单词本 ✅ 已完成
 
-- [ ] `TranslationService` 单元测试通过
-- [ ] `OCRService` 单元测试通过
-- [ ] `WordBookManager` 单元测试通过
-- [ ] `ScreenshotService` 能正常截图
-- [ ] 截图翻译集成测试：截图 → OCR → 翻译 → 显示
-- [ ] 快捷键 ⌘+⇧+S (Cmd+Shift+S) 触发截图
-- [ ] 翻译结果悬浮窗显示
-- [ ] 单词本 CRUD 功能正常
-- [ ] 错误处理：OCR 失败有 Alert 提示
-- [ ] 错误处理：翻译失败有 Alert 提示
-- [ ] 错误处理：截图权限拒绝有引导
+- [x] `TranslationService` 单元测试通过
+- [x] `OCRService` 单元测试通过
+- [x] `WordBookManager` 单元测试通过
+- [x] `ScreenshotService` 能正常截图
+- [x] 截图翻译集成测试：截图 → OCR → 翻译 → 显示
+- [x] 快捷键 ⌘+⇧+S (Cmd+Shift+S) 触发截图
+- [x] 翻译结果悬浮窗显示
+- [x] 单词本 CRUD 功能正常
+- [x] 错误处理：OCR 失败有 Alert 提示
+- [x] 错误处理：翻译失败有 Alert 提示
+- [x] 错误处理：截图权限拒绝有引导
 
-### Phase 2: Native Messaging
+### Phase 2: Native Messaging ✅ 已完成
 
-- [ ] `NativeMessagingHost` 能接收 Chrome 消息
-- [ ] `NativeMessagingHost` 能返回翻译结果
-- [ ] 收藏单词写入本地 SwiftData
-- [ ] 错误处理：通信异常有日志
+- [x] `NativeMessagingHost` 能接收 Chrome 消息
+- [x] `NativeMessagingHost` 能返回翻译结果
+- [x] 收藏单词写入本地 SwiftData
+- [x] 错误处理：通信异常有日志
+- [x] SwiftData 路径与 TranslatorApp 统一（`com.translator.app`）
+- [x] Model 类名统一（`Word` 而非 `HostWord`）
 
 ### Phase 3: 视频字幕
 

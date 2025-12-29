@@ -20,7 +20,19 @@ final class AppState: ObservableObject {
     nonisolated init() throws {
         // Initialize SwiftData - this is thread-safe
         let schema = Schema([Word.self])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+
+        // Use explicit path to share data with NativeMessagingHost
+        let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let bundleID = "com.translator.app"
+        let storeURL = appSupportURL
+            .appendingPathComponent(bundleID)
+            .appendingPathComponent("default.store")
+
+        // Ensure directory exists
+        let storeDir = storeURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+
+        let modelConfiguration = ModelConfiguration(url: storeURL)
         let container = try ModelContainer(for: schema, configurations: [modelConfiguration])
         self.modelContainer = container
 

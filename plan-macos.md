@@ -178,12 +178,54 @@ final class Word {
 - [ ] 快捷键自定义
 - [ ] 翻译目标语言设置
 
-## 后续阶段
+## Phase 2: Native Messaging Host ✅ 已完成
 
-### Phase 2: Chrome Extension 集成
-- Native Messaging Host
-- 接收 Chrome 扩展翻译请求
-- 网页单词收藏同步
+### 实现细节
+
+Chrome 扩展通过 Native Messaging 与 macOS App 通信：
+
+```
+Chrome Extension (content.ts)
+       ↓ chrome.runtime.sendMessage
+Background Service Worker (background.ts)
+       ↓ NATIVE_MESSAGE proxy
+       ↓ chrome.runtime.sendNativeMessage
+macOS App (NativeMessagingHost)
+       ↓
+TranslationService / HostWordBookService
+       ↓
+SwiftData (~/Library/Application Support/com.translator.app/default.store)
+```
+
+### 关键实现
+
+1. **NativeMessagingHost**: `TranslatorApp/NativeMessagingHost/` 目录
+   - `NativeMessagingHost.swift` - 主程序，处理 stdin/stdout 消息
+   - `HostWordBookService.swift` - 单词本服务，写入共享 SwiftData
+
+2. **SwiftData 路径统一**：
+   - NativeMessagingHost 和 TranslatorApp 必须使用相同路径
+   - 路径：`~/Library/Application Support/com.translator.app/default.store`
+   - AppState.swift 使用显式 `ModelConfiguration(url: storeURL)`
+
+3. **Model 类名统一**：
+   - 两边都必须使用 `Word` 类（不是 `HostWord`）
+   - SwiftData 通过类名匹配 schema
+
+4. **Native Messaging Manifest**:
+   - 位置：`~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.liujiahao.translatorapp.json`
+   - 指向：`NativeMessagingHost/.build/debug/NativeMessagingHost`
+
+### 已完成功能
+
+- [x] NativeMessagingHost 可执行文件
+- [x] 处理 translate 请求
+- [x] 处理 save_word 请求
+- [x] 处理 ping 健康检查
+- [x] 与 TranslatorApp 共享 SwiftData 数据库
+- [x] Chrome 扩展单词收藏同步到 macOS 单词本
+
+## 后续阶段
 
 ### Phase 3: 视频字幕翻译
 - YouTube 字幕提取

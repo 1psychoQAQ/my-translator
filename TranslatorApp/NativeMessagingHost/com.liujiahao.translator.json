@@ -1,0 +1,9 @@
+{
+  "name": "com.liujiahao.translator",
+  "description": "Native Messaging Host for Translator App",
+  "path": "/Applications/TranslatorApp.app/Contents/MacOS/NativeMessagingHost",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://EXTENSION_ID_PLACEHOLDER/"
+  ]
+}

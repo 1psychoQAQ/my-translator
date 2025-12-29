@@ -4,9 +4,13 @@
 
 从头创建Chrome扩展，实现沉浸式网页翻译功能，通过Native Messaging与macOS App通信。
 
-**当前状态**:
-- ChromeExtension目录不存在，需要创建
-- macOS端Native Messaging Host未实现（先用Mock模式开发）
+**当前状态**: ✅ Phase 2 基础功能已完成
+- ChromeExtension 目录已创建，核心功能已实现
+- macOS 端 Native Messaging Host 已实现并集成
+- 双击单词翻译 ✅
+- 单词收藏到 macOS 单词本 ✅
+- 全页翻译 ✅
+- 恢复原文 ✅
 
 ## Architecture
 
@@ -14,11 +18,20 @@
 Chrome Extension (content.ts)
        ↓ chrome.runtime.sendMessage
 Background Service Worker (background.ts)
-       ↓ Native Messaging
-macOS App (NativeMessagingHost.swift) ← 待实现
+       ↓ NATIVE_MESSAGE proxy
+       ↓ chrome.runtime.sendNativeMessage
+macOS App (NativeMessagingHost) ← ✅ 已实现
        ↓
-TranslationService / WordBookManager ← 已存在
+TranslationService / WordBookManager ← ✅ 已集成
+       ↓
+SwiftData (~/Library/Application Support/com.translator.app/default.store)
 ```
+
+### 关键实现细节
+
+1. **Content Script 不能直接调用 `sendNativeMessage`**，必须通过 Background Script 代理
+2. **SwiftData 路径必须统一**：NativeMessagingHost 和 TranslatorApp 使用相同的 `com.translator.app` 路径
+3. **Model 类名必须一致**：两边都使用 `Word` 类（不是 `HostWord`）
 
 ## Directory Structure
 
@@ -156,28 +169,31 @@ const shadow = element.attachShadow({ mode: 'closed' });
 
 ## Acceptance Criteria (from validate-chrome.md)
 
-- [ ] Manifest V3配置正确
-- [ ] Content Script能注入页面
-- [ ] 段落翻译：原文下方显示译文
-- [ ] 双语对照样式美观
-- [ ] 双击单词触发翻译
-- [ ] 双击单词可收藏到单词本
-- [ ] Native Messaging与macOS通信正常
-- [ ] 翻译结果缓存
-- [ ] 错误处理：翻译失败有toast提示
-- [ ] 单元测试：translator模块100%覆盖
-- [ ] 单元测试：wordbook模块100%覆盖
-- [ ] 无console.log遗留
+- [x] Manifest V3配置正确
+- [x] Content Script能注入页面
+- [x] 段落翻译：原文下方显示译文
+- [x] 双语对照样式美观（Shadow DOM隔离，自适应背景色）
+- [x] 双击单词触发翻译
+- [x] 双击单词可收藏到单词本
+- [x] Native Messaging与macOS通信正常
+- [x] 翻译结果缓存（LRU, 24h TTL）
+- [x] 错误处理：翻译失败有toast提示
+- [x] 单元测试：translator模块100%覆盖
+- [x] 单元测试：wordbook模块100%覆盖
+- [x] 恢复原文功能（右键菜单）
+- [ ] 无console.log遗留（开发阶段保留）
 - [ ] 无any类型
 - [ ] ESLint检查通过
 
 ## Development Strategy
 
-由于macOS Native Messaging Host未实现，采用Mock优先策略：
+~~由于macOS Native Messaging Host未实现，采用Mock优先策略：~~ ✅ 已完成
 
-1. 使用`createMockMessenger()`开发和测试Chrome扩展
-2. 完成Chrome扩展后，再实现macOS端`NativeMessagingHost.swift`
-3. 最后进行端到端集成测试
+1. ~~使用`createMockMessenger()`开发和测试Chrome扩展~~ ✅
+2. ~~完成Chrome扩展后，再实现macOS端`NativeMessagingHost.swift`~~ ✅
+3. ~~最后进行端到端集成测试~~ ✅
+
+**当前状态**: Native Messaging 已完全集成，Chrome 扩展可通过 `createMessengerWithFallback()` 自动检测并使用真实的 Native Messaging Host。
 
 ## Commands
 

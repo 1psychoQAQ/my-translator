@@ -333,18 +333,19 @@ shadow.innerHTML = `<style>...</style><div>...</div>`;
 
 ### Phase 2: 沉浸式翻译 + 收藏
 
-- [ ] Manifest V3 配置正确
-- [ ] Content Script 能注入页面
-- [ ] 段落翻译：原文下方显示译文
-- [ ] 双语对照样式美观
-- [ ] 双击单词触发翻译
-- [ ] 双击单词可收藏到单词本
-- [ ] Native Messaging 与 macOS 通信正常
-- [ ] 翻译结果缓存（避免重复请求）
-- [ ] 错误处理：翻译失败有 toast 提示
-- [ ] 错误处理：通信失败有提示
-- [ ] 单元测试：translator 模块 100% 覆盖
-- [ ] 单元测试：wordbook 模块 100% 覆盖
+- [x] Manifest V3 配置正确
+- [x] Content Script 能注入页面
+- [x] 段落翻译：原文下方显示译文
+- [x] 双语对照样式美观（Shadow DOM 隔离，自适应背景色）
+- [x] 双击单词触发翻译
+- [x] 双击单词可收藏到单词本
+- [x] Native Messaging 与 macOS 通信正常
+- [x] 翻译结果缓存（LRU, 24h TTL）
+- [x] 错误处理：翻译失败有 toast 提示
+- [x] 错误处理：通信失败有提示
+- [x] 单元测试：translator 模块 100% 覆盖
+- [x] 单元测试：wordbook 模块 100% 覆盖
+- [x] 恢复原文功能（右键菜单「恢复原文」）
 
 ### Phase 3: 视频字幕翻译
 
@@ -358,8 +359,9 @@ shadow.innerHTML = `<style>...</style><div>...</div>`;
 
 ### 通用检查
 
-- [ ] 无 console.log 遗留（生产环境）
+- [ ] 无 console.log 遗留（生产环境）- 开发阶段保留
 - [ ] 无 any 类型（TypeScript）
 - [ ] ESLint 检查通过
-- [ ] 扩展加载无错误
-- [ ] 扩展图标状态正确
+- [x] 扩展加载无错误
+- [x] 扩展图标状态正确
+- [x] 右键菜单功能正常（翻译选中、翻译页面、恢复原文）

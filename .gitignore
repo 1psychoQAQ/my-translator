@@ -8,6 +8,8 @@
 # Build
 TranslatorApp/build/
 TranslatorApp/DerivedData/
+TranslatorApp/NativeMessagingHost/.build/
+TranslatorApp/NativeMessagingHost/.swiftpm/
 
 # Node
 node_modules/
