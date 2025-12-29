@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+*.profraw
+
+# IDE
+.idea/
+
+# Build
+TranslatorApp/build/
+TranslatorApp/DerivedData/
+
+# Node
+node_modules/
+ChromeExtension/node_modules/
+ChromeExtension/dist/
+ChromeExtension/coverage/
+
+# Xcode
+*.xcuserstate
+xcuserdata/

@@ -268,7 +268,7 @@ struct WordBookView: View {
 - [ ] `WordBookManager` 单元测试通过
 - [ ] `ScreenshotService` 能正常截图
 - [ ] 截图翻译集成测试：截图 → OCR → 翻译 → 显示
-- [ ] 快捷键 fn+F1 触发截图
+- [ ] 快捷键 ⌘+⇧+S (Cmd+Shift+S) 触发截图
 - [ ] 翻译结果悬浮窗显示
 - [ ] 单词本 CRUD 功能正常
 - [ ] 错误处理：OCR 失败有 Alert 提示

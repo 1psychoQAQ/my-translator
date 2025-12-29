@@ -51,7 +51,7 @@ macOS 菜单栏/Dock 应用，提供截图翻译和本地单词本功能。
 ### 1. 截图翻译流程
 
 ```
-fn+F1 快捷键
+⌘+⇧+S 快捷键 (Cmd+Shift+S)
     │
     ▼
 ┌─────────────────┐
@@ -152,7 +152,7 @@ final class Word {
 
 - [x] 项目结构搭建
 - [x] 菜单栏/Dock 应用框架
-- [x] 全局快捷键 fn+F1
+- [x] 全局快捷键 ⌘+⇧+S (Cmd+Shift+S)
 - [x] 截图选区功能 (SelectionOverlayWindow)
 - [x] ScreenCaptureKit 截图
 - [x] Vision OCR 文字识别
