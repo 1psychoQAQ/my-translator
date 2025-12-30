@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct WordBookView: View {
 
@@ -45,10 +46,29 @@ struct WordBookView: View {
         List {
             ForEach(viewModel.words, id: \.id) { word in
                 WordRowView(word: word)
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            viewModel.deleteWord(word)
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
+
+                        Button {
+                            copyToClipboard(word)
+                        } label: {
+                            Label("复制", systemImage: "doc.on.doc")
+                        }
+                    }
             }
             .onDelete(perform: viewModel.deleteWords)
         }
         .listStyle(.inset)
+    }
+
+    private func copyToClipboard(_ word: Word) {
+        let text = "\(word.text)\n\(word.translation)"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     private var emptyStateView: some View {

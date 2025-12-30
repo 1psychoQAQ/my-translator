@@ -17,10 +17,9 @@ struct TranslatorAppApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        // Hidden window - only opens when requested
+        // 单词本窗口
         Window("单词本", id: "wordbook") {
-            WordBookView(viewModel: globalAppState.createWordBookViewModel())
-                .modelContainer(globalAppState.modelContainer)
+            WordBookWindowContent()
         }
         .defaultSize(width: 500, height: 600)
         .defaultPosition(.center)
@@ -29,6 +28,24 @@ struct TranslatorAppApp: App {
             SettingsView()
         }
     }
+}
+
+// MARK: - 单词本窗口内容（支持通过通知打开）
+struct WordBookWindowContent: View {
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        WordBookView(viewModel: globalAppState.createWordBookViewModel())
+            .modelContainer(globalAppState.modelContainer)
+            .onReceive(NotificationCenter.default.publisher(for: .openWordBook)) { _ in
+                openWindow(id: "wordbook")
+            }
+    }
+}
+
+// MARK: - 打开单词本通知
+extension Notification.Name {
+    static let openWordBook = Notification.Name("openWordBook")
 }
 
 // MARK: - AppDelegate with NSStatusItem
@@ -80,19 +97,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func openWordBook() {
-        if let url = URL(string: "translatorapp://wordbook") {
-            NSWorkspace.shared.open(url)
-        }
-        // Alternative: open window directly
+        // 先激活应用
+        NSApplication.shared.activate(ignoringOtherApps: true)
+
+        // 查找已存在的单词本窗口（包括隐藏的）
         for window in NSApplication.shared.windows {
-            if window.title == "单词本" {
+            if window.title == "单词本" ||
+               window.identifier?.rawValue.contains("wordbook") == true {
                 window.makeKeyAndOrderFront(nil)
-                NSApplication.shared.activate(ignoringOtherApps: true)
                 return
             }
         }
-        // Create new window if not found
-        NSApplication.shared.activate(ignoringOtherApps: true)
+
+        // 窗口不存在时，发送通知让 SwiftUI 打开
+        NotificationCenter.default.post(name: .openWordBook, object: nil)
     }
 
     @objc func quitApp() {

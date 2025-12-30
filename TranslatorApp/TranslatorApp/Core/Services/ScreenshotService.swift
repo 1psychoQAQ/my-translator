@@ -6,7 +6,6 @@ final class ScreenshotService: ScreenshotServiceProtocol {
 
     private var currentSelectionWindow: SelectionOverlayWindow?
     private var isCapturing = false
-    private var hiddenWindows: [NSWindow] = []
 
     /// 显示选区窗口，返回用户的操作
     /// - Parameter onTranslate: 翻译回调，接收选区坐标，返回原文和译文
@@ -35,8 +34,7 @@ final class ScreenshotService: ScreenshotServiceProtocol {
                 completion: { [weak self] action in
                     self?.currentSelectionWindow = nil
                     self?.isCapturing = false
-                    // 恢复隐藏的窗口
-                    self?.restoreHiddenWindows()
+                    // 不自动恢复窗口，保持截图前的状态
                     continuation.resume(returning: action)
                 }
             )
@@ -47,9 +45,8 @@ final class ScreenshotService: ScreenshotServiceProtocol {
         return action
     }
 
-    /// 隐藏所有其他应用窗口
+    /// 隐藏所有其他应用窗口（截图时避免遮挡）
     private func hideOtherWindows() {
-        hiddenWindows.removeAll()
         for window in NSApplication.shared.windows {
             // 跳过截图选区窗口本身
             if window === currentSelectionWindow { continue }
@@ -58,17 +55,8 @@ final class ScreenshotService: ScreenshotServiceProtocol {
             // 跳过状态栏菜单等系统窗口
             if window.level.rawValue < 0 { continue }
 
-            hiddenWindows.append(window)
             window.orderOut(nil)
         }
-    }
-
-    /// 恢复之前隐藏的窗口
-    private func restoreHiddenWindows() {
-        for window in hiddenWindows {
-            window.orderBack(nil)
-        }
-        hiddenWindows.removeAll()
     }
 
     /// 根据选区截图
