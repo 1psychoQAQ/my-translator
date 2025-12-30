@@ -4,13 +4,14 @@
 
 从头创建Chrome扩展，实现沉浸式网页翻译功能，通过Native Messaging与macOS App通信。
 
-**当前状态**: ✅ Phase 2 基础功能已完成
+**当前状态**: ✅ Phase 2 基础功能已完成，Phase 3 YouTube 字幕翻译已完成
 - ChromeExtension 目录已创建，核心功能已实现
 - macOS 端 Native Messaging Host 已实现并集成
 - 双击单词翻译 ✅
 - 单词收藏到 macOS 单词本 ✅
 - 全页翻译 ✅
 - 恢复原文 ✅
+- YouTube 双语字幕翻译 ✅ (Phase 3)
 
 ## Architecture
 
@@ -50,13 +51,15 @@ ChromeExtension/
 │   ├── translator.ts       # 翻译模块
 │   ├── wordbook.ts         # 单词收藏模块
 │   ├── toast.ts            # Toast通知UI
-│   ├── content.ts          # Content Script
+│   ├── content.ts          # Content Script (网页翻译)
+│   ├── content_youtube.ts  # YouTube字幕翻译 (Phase 3)
 │   └── background.ts       # Service Worker
 ├── tests/
 │   ├── setup.ts
 │   ├── translator.test.ts  # 100%覆盖
 │   ├── wordbook.test.ts    # 100%覆盖
-│   └── cache.test.ts
+│   ├── cache.test.ts
+│   └── content_youtube.test.ts
 └── dist/
 ```
 
@@ -181,6 +184,9 @@ const shadow = element.attachShadow({ mode: 'closed' });
 - [x] 单元测试：translator模块100%覆盖
 - [x] 单元测试：wordbook模块100%覆盖
 - [x] 恢复原文功能（右键菜单）
+- [x] YouTube双语字幕翻译（Phase 3）
+- [x] 字幕切换按钮（YouTube播放器内）
+- [x] 字幕中双击单词可收藏
 - [ ] 无console.log遗留（开发阶段保留）
 - [ ] 无any类型
 - [ ] ESLint检查通过

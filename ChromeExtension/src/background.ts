@@ -76,6 +76,10 @@ interface RestorePageMessage {
   type: 'RESTORE_PAGE';
 }
 
+interface ToggleYouTubeSubtitleMessage {
+  type: 'TOGGLE_YOUTUBE_SUBTITLE';
+}
+
 interface NativeProxyMessage {
   type: 'NATIVE_MESSAGE';
   payload: NativeMessage;
@@ -88,6 +92,7 @@ type BackgroundMessage =
   | TranslatePageMessage
   | TranslateSelectionMessage
   | RestorePageMessage
+  | ToggleYouTubeSubtitleMessage
   | NativeProxyMessage;
 
 chrome.runtime.onMessage.addListener(
@@ -142,7 +147,8 @@ async function handleMessage(
 
       case 'TRANSLATE_PAGE':
       case 'TRANSLATE_SELECTION':
-      case 'RESTORE_PAGE': {
+      case 'RESTORE_PAGE':
+      case 'TOGGLE_YOUTUBE_SUBTITLE': {
         // Forward to active tab's content script
         const [tab] = await chrome.tabs.query({
           active: true,
@@ -229,6 +235,14 @@ chrome.runtime.onInstalled.addListener(() => {
       title: '恢复原文',
       contexts: ['page'],
     });
+
+    // YouTube-specific context menu
+    chrome.contextMenus.create({
+      id: 'toggle-youtube-subtitle',
+      title: '切换双语字幕',
+      contexts: ['page'],
+      documentUrlPatterns: ['*://www.youtube.com/*', '*://youtube.com/*'],
+    });
   });
 });
 
@@ -256,6 +270,14 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       await chrome.tabs.sendMessage(tab.id, { type: 'RESTORE_PAGE' });
     } catch {
       console.error('[Translator Background] Failed to restore page');
+    }
+  }
+
+  if (info.menuItemId === 'toggle-youtube-subtitle') {
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_YOUTUBE_SUBTITLE' });
+    } catch {
+      console.error('[Translator Background] Failed to toggle YouTube subtitle');
     }
   }
 });

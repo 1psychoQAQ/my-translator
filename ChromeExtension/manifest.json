@@ -23,7 +23,13 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
+      "exclude_matches": ["*://www.youtube.com/*", "*://youtube.com/*"],
       "js": ["content.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://www.youtube.com/*", "*://youtube.com/*"],
+      "js": ["content.js", "content_youtube.js"],
       "run_at": "document_idle"
     }
   ],
