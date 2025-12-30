@@ -72,7 +72,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Build menu
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "截图翻译 (⌘+⇧+S)", action: #selector(startScreenshot), keyEquivalent: ""))
+        let screenshotItem = NSMenuItem(
+            title: "截图翻译 (\(HotkeySettings.shared.displayString))",
+            action: #selector(startScreenshot),
+            keyEquivalent: ""
+        )
+        screenshotItem.tag = 1  // 用于后续更新
+        menu.addItem(screenshotItem)
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "打开单词本", action: #selector(openWordBook), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
@@ -81,6 +87,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
         print("📋 Menu attached")
 
+        // 监听快捷键变更，更新菜单显示
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateMenuHotkeyDisplay),
+            name: .hotkeyChanged,
+            object: nil
+        )
+
         // Configure app state
         Task { @MainActor in
             globalAppState.configure()
@@ -88,6 +102,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         print("✅ TranslatorApp initialized")
+    }
+
+    @objc func updateMenuHotkeyDisplay() {
+        if let menu = statusItem.menu,
+           let item = menu.item(withTag: 1) {
+            item.title = "截图翻译 (\(HotkeySettings.shared.displayString))"
+        }
     }
 
     @objc func startScreenshot() {
@@ -157,13 +178,15 @@ struct SettingsView: View {
 }
 
 struct GeneralSettingsView: View {
+    @ObservedObject private var hotkeySettings = HotkeySettings.shared
+
     var body: some View {
         Form {
             Section {
                 HStack {
                     Text("截图翻译快捷键")
                     Spacer()
-                    Text("⌘ + ⇧ + S")
+                    Text(hotkeySettings.displayString)
                         .foregroundColor(.secondary)
                 }
             } header: {

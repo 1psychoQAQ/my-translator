@@ -271,15 +271,15 @@ private class OverlayView: NSView {
         dimLayer.path = CGPath(rect: bounds, transform: nil)
         layer?.addSublayer(dimLayer)
 
-        // 选区边框：白色虚线
-        selectionLayer.strokeColor = NSColor.white.cgColor
-        selectionLayer.fillColor = NSColor.clear.cgColor
+        // 选区边框：荧光笔高亮风格
+        selectionLayer.strokeColor = NSColor.systemYellow.withAlphaComponent(0.8).cgColor
+        selectionLayer.fillColor = NSColor.systemYellow.withAlphaComponent(0.15).cgColor
         selectionLayer.lineWidth = 2
-        selectionLayer.lineDashPattern = [6, 4]
-        selectionLayer.shadowColor = NSColor.black.cgColor
-        selectionLayer.shadowOffset = CGSize(width: 0, height: 0)
-        selectionLayer.shadowRadius = 2
-        selectionLayer.shadowOpacity = 0.5
+        selectionLayer.cornerRadius = 4
+        selectionLayer.shadowColor = NSColor.systemYellow.cgColor
+        selectionLayer.shadowOffset = .zero
+        selectionLayer.shadowRadius = 6
+        selectionLayer.shadowOpacity = 0.4
         layer?.addSublayer(selectionLayer)
     }
 
@@ -325,14 +325,24 @@ private class OverlayView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
 
-        // 选区边框
-        selectionLayer.path = CGPath(rect: currentRect, transform: nil)
+        let cornerRadius: CGFloat = 4
+
+        // 选区边框：圆角矩形
+        selectionLayer.path = CGPath(
+            roundedRect: currentRect,
+            cornerWidth: cornerRadius,
+            cornerHeight: cornerRadius,
+            transform: nil
+        )
 
         // 暗色遮罩 - 使用 even-odd 规则实现镂空效果
-        // 外层矩形覆盖全屏，内层矩形（选区）被镂空
         let maskPath = CGMutablePath()
-        maskPath.addRect(bounds)        // 全屏区域
-        maskPath.addRect(currentRect)   // 选区（镂空）
+        maskPath.addRect(bounds)  // 全屏区域
+        maskPath.addRoundedRect(
+            in: currentRect,
+            cornerWidth: cornerRadius,
+            cornerHeight: cornerRadius
+        )
         dimLayer.path = maskPath
 
         CATransaction.commit()

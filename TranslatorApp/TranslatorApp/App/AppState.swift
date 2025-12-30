@@ -132,7 +132,8 @@ final class AppState: ObservableObject {
     }
 
     func setupGlobalHotkey() {
-        print("🔑 Setting up global hotkey (⌘+⇧+S) with Carbon API...")
+        let settings = HotkeySettings.shared
+        print("🔑 Setting up global hotkey (\(settings.displayString)) with Carbon API...")
 
         // 安装事件处理器
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
@@ -159,15 +160,33 @@ final class AppState: ObservableObject {
             return
         }
 
-        // 注册热键: ⌘+⇧+S
-        // S 的 keyCode = 1 (kVK_ANSI_S)
+        // 注册热键（从设置读取）
+        registerHotkey()
+
+        // 监听快捷键变更
+        NotificationCenter.default.addObserver(
+            forName: .hotkeyChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.registerHotkey()
+        }
+    }
+
+    private func registerHotkey() {
+        // 先注销旧的热键
+        if let ref = hotKeyRef {
+            UnregisterEventHotKey(ref)
+            hotKeyRef = nil
+        }
+
+        let settings = HotkeySettings.shared
         var hotKeyID = EventHotKeyID(signature: OSType(0x54535450), id: 1) // "TSTP"
-        let modifiers: UInt32 = UInt32(cmdKey | shiftKey)
 
         var ref: EventHotKeyRef?
         let regStatus = RegisterEventHotKey(
-            UInt32(kVK_ANSI_S),
-            modifiers,
+            settings.screenshotKeyCode,
+            settings.screenshotModifiers,
             hotKeyID,
             GetApplicationEventTarget(),
             0,
@@ -180,7 +199,7 @@ final class AppState: ObservableObject {
         }
 
         self.hotKeyRef = ref
-        print("✅ Global hotkey registered (⌘+⇧+S)")
+        print("✅ Global hotkey registered (\(settings.displayString))")
     }
 
     func removeHotkeyMonitor() {
@@ -188,6 +207,7 @@ final class AppState: ObservableObject {
             UnregisterEventHotKey(ref)
             hotKeyRef = nil
         }
+        NotificationCenter.default.removeObserver(self, name: .hotkeyChanged, object: nil)
     }
 
     func createWordBookViewModel() -> WordBookViewModel {
