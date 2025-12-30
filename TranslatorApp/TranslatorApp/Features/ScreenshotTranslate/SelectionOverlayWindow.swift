@@ -38,7 +38,9 @@ final class SelectionOverlayWindow: NSWindow {
             defer: false
         )
 
-        self.level = .floating
+        // 使用较高的窗口层级，确保在所有普通窗口（包括 SwiftUI Window）之上
+        // 但避免使用 .screenSaver（会导致系统死锁）
+        self.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()) - 1)
         self.backgroundColor = .clear
         self.isOpaque = false
         self.hasShadow = false
