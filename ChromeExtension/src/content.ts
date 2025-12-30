@@ -3,6 +3,7 @@ import { createMessengerWithFallback } from './native-messenger';
 import { createTranslator } from './translator';
 import { createWordBookService, createWordEntry } from './wordbook';
 import { createToast } from './toast';
+import { createFloatingButton, setPageTranslated } from './floating-button';
 import { TranslatorError, ErrorCode, getUserMessage } from './errors';
 import type { Translator, WordBookService, ToastNotification } from './types';
 
@@ -17,6 +18,7 @@ let translator: Translator;
 let wordBook: WordBookService;
 let toast: ToastNotification;
 let isInitialized = false;
+let isPageTranslated = false;
 
 // === Initialization ===
 
@@ -35,6 +37,51 @@ async function initialize(): Promise<void> {
   // Set up event listeners
   setupDoubleClickHandler();
   injectStyles();
+
+  // Create floating button
+  const isYouTube = window.location.hostname.includes('youtube.com');
+  await createFloatingButton({
+    isYouTube,
+    onAction: handleFloatingButtonAction,
+  });
+}
+
+// === Floating Button Handler ===
+
+async function handleFloatingButtonAction(
+  action: 'translate-page' | 'restore-page' | 'toggle-youtube'
+): Promise<void> {
+  switch (action) {
+    case 'translate-page':
+      toast.info('正在翻译页面...');
+      try {
+        await translatePage();
+        isPageTranslated = true;
+        setPageTranslated(true);
+        toast.success('页面翻译完成');
+      } catch (error) {
+        toast.error('翻译失败');
+      }
+      break;
+
+    case 'restore-page':
+      removeAllTranslations();
+      isPageTranslated = false;
+      setPageTranslated(false);
+      toast.info('已恢复原文');
+      break;
+
+    case 'toggle-youtube':
+      // Send message to YouTube content script
+      chrome.runtime.sendMessage({ type: 'TOGGLE_YOUTUBE_SUBTITLE' }, (response) => {
+        if (response?.enabled) {
+          toast.success('双语字幕已开启');
+        } else {
+          toast.info('双语字幕已关闭');
+        }
+      });
+      break;
+  }
 }
 
 // === Styles Injection ===
@@ -284,13 +331,30 @@ function showWordPopup(
 
   closeBtn?.addEventListener('click', removeWordPopup);
 
+  // Get the actual popup element inside shadow for bounds checking
+  const popupInner = shadow.querySelector('.popup') as HTMLElement;
+
   // Close on click outside (with delay to prevent immediate close)
   setTimeout(() => {
     document.addEventListener('click', handleOutsideClick);
   }, 100);
 
   function handleOutsideClick(e: MouseEvent): void {
-    if (!popup.contains(e.target as Node)) {
+    if (!popupInner) {
+      removeWordPopup();
+      document.removeEventListener('click', handleOutsideClick);
+      return;
+    }
+
+    // Check if click is inside the popup bounds
+    const rect = popupInner.getBoundingClientRect();
+    const isInside =
+      e.clientX >= rect.left &&
+      e.clientX <= rect.right &&
+      e.clientY >= rect.top &&
+      e.clientY <= rect.bottom;
+
+    if (!isInside) {
       removeWordPopup();
       document.removeEventListener('click', handleOutsideClick);
     }
@@ -351,12 +415,9 @@ async function handleDoubleClick(event: MouseEvent): Promise<void> {
             translation,
             window.location.href
           );
-          console.log('[Translator] Saving word:', word);
           await wordBook.save(word);
-          console.log('[Translator] Word saved successfully');
           toast.success('已收藏到单词本');
         } catch (error) {
-          console.error('[Translator] Save failed:', error);
           if (
             error instanceof TranslatorError &&
             error.code === ErrorCode.WORD_ALREADY_EXISTS
@@ -381,31 +442,55 @@ async function handleDoubleClick(event: MouseEvent): Promise<void> {
 // === Paragraph Translation (for future use) ===
 
 const TRANSLATABLE_SELECTORS = [
+  // Generic text elements
+  'p',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'li',
+  'blockquote',
+  'figcaption',
+  'caption',
+  'td',
+  'th',
+  'dt',
+  'dd',
+  'label',
+  'legend',
+  // Semantic elements
   'article p',
   'article h1',
   'article h2',
   'article h3',
-  'article h4',
-  'article h5',
-  'article h6',
   'article li',
-  'article blockquote',
-  'article figcaption',
+  'section p',
+  'section h1',
+  'section h2',
+  'section h3',
   '.markdown-body p',
   '.markdown-body h1',
   '.markdown-body h2',
   '.markdown-body h3',
-  '.markdown-body h4',
   '.markdown-body li',
-  '.markdown-body blockquote',
   'main p',
   'main h1',
   'main h2',
   'main h3',
   '[role="main"] p',
-  '[role="main"] h1',
-  '[role="main"] h2',
-  '[role="main"] h3',
+  // Common class patterns
+  '.content p',
+  '.post p',
+  '.entry p',
+  '.text p',
+  '.body p',
+  '.description',
+  '.summary',
+  '.excerpt',
+  '.intro',
+  // Span/div with substantial text (handled separately)
 ];
 
 const EXCLUDED_SELECTORS = [
@@ -416,19 +501,24 @@ const EXCLUDED_SELECTORS = [
   'pre',
   'input',
   'textarea',
+  'select',
   'button',
   'nav',
-  'header',
-  'footer',
   'aside',
   '[contenteditable="true"]',
   '[data-translated="true"]',
   '[role="navigation"]',
-  '[role="banner"]',
   '[role="tooltip"]',
+  '[role="menu"]',
+  '[role="menuitem"]',
   '[aria-hidden="true"]',
   '.sr-only',
   '.visually-hidden',
+  '.icon',
+  '.btn',
+  '.button',
+  // Translation container
+  `.${TRANSLATION_CONTAINER_CLASS}`,
 ];
 
 function shouldTranslateParagraph(element: HTMLElement): boolean {
@@ -445,9 +535,9 @@ function shouldTranslateParagraph(element: HTMLElement): boolean {
     return false;
   }
 
-  // Check minimum text length
+  // Check minimum text length (lowered to 10 to catch more content)
   const text = element.textContent?.trim() || '';
-  if (text.length < 20) return false;
+  if (text.length < 10) return false;
 
   // Check if already translated
   if (element.dataset.translated === 'true') return false;
@@ -459,18 +549,37 @@ function shouldTranslateParagraph(element: HTMLElement): boolean {
 }
 
 function getTranslatableParagraphs(): HTMLElement[] {
-  const elements: HTMLElement[] = [];
+  const elementSet = new Set<HTMLElement>();
 
+  // First pass: collect elements matching selectors
   for (const selector of TRANSLATABLE_SELECTORS) {
     document.querySelectorAll(selector).forEach((el) => {
       const htmlEl = el as HTMLElement;
       if (shouldTranslateParagraph(htmlEl)) {
-        elements.push(htmlEl);
+        elementSet.add(htmlEl);
       }
     });
   }
 
-  return elements;
+  // Second pass: remove nested elements (keep only outermost)
+  // If an element is a descendant of another selected element, remove it
+  const filteredElements: HTMLElement[] = [];
+  for (const el of elementSet) {
+    let isNested = false;
+    let parent = el.parentElement;
+    while (parent) {
+      if (elementSet.has(parent)) {
+        isNested = true;
+        break;
+      }
+      parent = parent.parentElement;
+    }
+    if (!isNested) {
+      filteredElements.push(el);
+    }
+  }
+
+  return filteredElements;
 }
 
 // Translate all paragraphs on page (can be triggered by user action)
@@ -520,6 +629,8 @@ chrome.runtime.onMessage.addListener((message: ContentScriptMessage, _sender, se
 
   if (message.type === 'RESTORE_PAGE') {
     removeAllTranslations();
+    isPageTranslated = false;
+    setPageTranslated(false);
     sendResponse({ success: true });
     return true;
   }
@@ -529,8 +640,8 @@ chrome.runtime.onMessage.addListener((message: ContentScriptMessage, _sender, se
 
 // === Entry Point ===
 
-initialize().catch((error) => {
-  console.error('[Translator] Failed to initialize:', error);
+initialize().catch(() => {
+  // Silent fail - user will see error when trying to use features
 });
 
 // Export for testing

@@ -18,8 +18,6 @@ let isNativeConnected = false;
 async function initialize(): Promise<void> {
   if (isInitialized) return;
 
-  console.log('[Translator Background] Initializing...');
-
   // Create native messenger (background script can use sendNativeMessage directly)
   nativeMessenger = createNativeMessenger();
   const cache = createTranslationCache();
@@ -27,9 +25,7 @@ async function initialize(): Promise<void> {
   // Check if native host is connected
   try {
     isNativeConnected = await nativeMessenger.isConnected();
-    console.log('[Translator Background] Native Host connected:', isNativeConnected);
-  } catch (error) {
-    console.log('[Translator Background] Native Host connection failed:', error);
+  } catch {
     isNativeConnected = false;
   }
 
@@ -37,7 +33,6 @@ async function initialize(): Promise<void> {
   wordBook = createWordBookService(nativeMessenger);
 
   isInitialized = true;
-  console.log('[Translator Background] Initialized successfully');
 }
 
 // Ensure initialization on startup

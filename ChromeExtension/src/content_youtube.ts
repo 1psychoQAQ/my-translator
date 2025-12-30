@@ -18,7 +18,6 @@ import type { Translator, WordBookService, ToastNotification } from './types';
 // === Constants ===
 
 const SUBTITLE_CONTAINER_ID = 'translator-youtube-subtitles';
-const SUBTITLE_TOGGLE_ID = 'translator-youtube-toggle';
 
 // === Global State ===
 
@@ -34,12 +33,27 @@ let subtitleObserver: MutationObserver | null = null;
 // Cache for translated subtitles to avoid re-translating
 const translatedCues = new Map<string, string>();
 
+// Debounce timer for subtitle updates
+let subtitleDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSubtitleText = ''; // Last text we started processing
+let pendingSubtitleText = ''; // Text currently building up (may be incomplete)
+let currentDisplayedText = ''; // What's currently shown on screen
+let isTranslating = false; // Prevent overlapping translations
+let useTextTrackAPI = false; // True if TextTrack API is providing cues
+let lastTextTrackCueTime = 0; // Timestamp of last TextTrack cue
+const DEBOUNCE_DELAY = 800; // ms - wait for subtitle to stabilize (MutationObserver fallback)
+const TEXT_TRACK_TIMEOUT = 3000; // ms - if no TextTrack cue for this long, fall back to MutationObserver
+
+// Sentence buffering - combine cues into complete sentences
+let sentenceBuffer = ''; // Buffer to accumulate cues
+let sentenceTimer: ReturnType<typeof setTimeout> | null = null;
+const SENTENCE_TIMEOUT = 1500; // ms - max wait time for sentence completion
+const SENTENCE_END_PATTERN = /[.!?。！？；;]$/; // Punctuation that ends a sentence
+
 // === Initialization ===
 
 async function initialize(): Promise<void> {
   if (isInitialized) return;
-
-  console.log('[YouTube Translator] Initializing...');
 
   const messenger = await createMessengerWithFallback();
   const cache = createTranslationCache();
@@ -52,9 +66,6 @@ async function initialize(): Promise<void> {
 
   // Start monitoring for video player
   observeVideoPlayer();
-  injectToggleButton();
-
-  console.log('[YouTube Translator] Initialized');
 }
 
 // === Video Player Detection ===
@@ -79,7 +90,6 @@ function checkForVideoPlayer(): void {
 
   if (video && video !== currentVideo) {
     currentVideo = video;
-    console.log('[YouTube Translator] Video player found');
     setupSubtitleTracking(video);
   }
 }
@@ -116,19 +126,97 @@ function setupSubtitleTracking(video: HTMLVideoElement): void {
 }
 
 function watchTrack(track: TextTrack): void {
-  console.log('[YouTube Translator] Watching track:', track.label, track.language);
-
   track.addEventListener('cuechange', () => {
     if (!isEnabled || track.mode === 'disabled') return;
 
     const activeCues = track.activeCues;
     if (activeCues && activeCues.length > 0) {
       const cue = activeCues[0] as VTTCue;
-      handleSubtitleCue(cue.text);
+      // TextTrack API provides complete cues - process immediately without debounce
+      handleTextTrackCue(cue.text);
     } else {
-      hideSubtitleOverlay();
+      // Cue ended - hide after a short delay
+      setTimeout(() => {
+        if (!pendingSubtitleText && !isTranslating) {
+          hideSubtitleOverlay();
+          currentDisplayedText = '';
+        }
+      }, 300);
     }
   });
+}
+
+// Handle cues from TextTrack API - buffer into complete sentences
+function handleTextTrackCue(text: string): void {
+  if (!isEnabled || !text || text.trim().length === 0) return;
+
+  const trimmedText = text.trim();
+
+  // Mark that TextTrack API is working
+  useTextTrackAPI = true;
+  lastTextTrackCueTime = Date.now();
+
+  // Clear any pending MutationObserver debounce
+  if (subtitleDebounceTimer) {
+    clearTimeout(subtitleDebounceTimer);
+    subtitleDebounceTimer = null;
+  }
+
+  // Add to sentence buffer
+  if (sentenceBuffer && !sentenceBuffer.endsWith(' ')) {
+    sentenceBuffer += ' ';
+  }
+  sentenceBuffer += trimmedText;
+
+  // Clear previous sentence timer
+  if (sentenceTimer) {
+    clearTimeout(sentenceTimer);
+    sentenceTimer = null;
+  }
+
+  // Check if sentence is complete (ends with punctuation)
+  const isSentenceComplete = SENTENCE_END_PATTERN.test(sentenceBuffer);
+
+  if (isSentenceComplete) {
+    // Sentence complete - translate immediately
+    processBufferedSentence();
+  } else {
+    // Wait for more cues or timeout
+    sentenceTimer = setTimeout(() => {
+      // Timeout - translate what we have
+      processBufferedSentence();
+    }, SENTENCE_TIMEOUT);
+  }
+}
+
+// Process the buffered sentence
+function processBufferedSentence(): void {
+  if (!sentenceBuffer) return;
+
+  const sentence = sentenceBuffer.trim();
+  sentenceBuffer = '';
+
+  if (sentenceTimer) {
+    clearTimeout(sentenceTimer);
+    sentenceTimer = null;
+  }
+
+  // Skip if same as last
+  if (sentence === lastSubtitleText) return;
+
+  lastSubtitleText = sentence;
+  pendingSubtitleText = sentence;
+
+  // Check cache first
+  const cached = translatedCues.get(sentence);
+  if (cached) {
+    currentDisplayedText = sentence;
+    showSubtitleOverlay(sentence, cached);
+    return;
+  }
+
+  // Process translation
+  processSubtitleTranslation(sentence);
 }
 
 // === YouTube Custom Subtitle Observer ===
@@ -143,10 +231,14 @@ function observeYouTubeSubtitles(): void {
     return;
   }
 
-  console.log('[YouTube Translator] Found YouTube subtitle container');
-
   subtitleObserver = new MutationObserver((mutations) => {
     if (!isEnabled) return;
+
+    // If TextTrack API is working recently, ignore MutationObserver
+    // This prevents duplicate/conflicting updates
+    if (useTextTrackAPI && Date.now() - lastTextTrackCueTime < TEXT_TRACK_TIMEOUT) {
+      return;
+    }
 
     for (const mutation of mutations) {
       if (mutation.type === 'childList' || mutation.type === 'characterData') {
@@ -154,9 +246,11 @@ function observeYouTubeSubtitles(): void {
         if (captionWindow) {
           const text = captionWindow.textContent?.trim();
           if (text) {
-            handleSubtitleCue(text);
+            // MutationObserver fallback - needs debouncing since text may be building up
+            handleMutationObserverCue(text);
           } else {
-            hideSubtitleOverlay();
+            // Text disappeared
+            handleMutationObserverCue('');
           }
         }
       }
@@ -172,42 +266,113 @@ function observeYouTubeSubtitles(): void {
 
 // === Subtitle Translation ===
 
-async function handleSubtitleCue(text: string): Promise<void> {
+// MutationObserver fallback handler - needs debouncing
+// YouTube subtitles may build up word by word when TextTrack API isn't available
+// We need to wait for the COMPLETE sentence before translating
+function handleMutationObserverCue(text: string): void {
+  if (!isEnabled) {
+    return;
+  }
+
   if (!text || text.trim().length === 0) {
-    hideSubtitleOverlay();
+    // Subtitle disappeared - but don't hide immediately
+    // The subtitle might just be transitioning between cues
+    if (subtitleDebounceTimer) {
+      clearTimeout(subtitleDebounceTimer);
+      subtitleDebounceTimer = null;
+    }
+
+    // Only hide after a delay, and only if nothing new came in
+    pendingSubtitleText = '';
+    if (!isTranslating) {
+      subtitleDebounceTimer = setTimeout(() => {
+        if (pendingSubtitleText === '') {
+          hideSubtitleOverlay();
+          currentDisplayedText = '';
+          lastSubtitleText = '';
+        }
+      }, 800);
+    }
     return;
   }
 
   const trimmedText = text.trim();
 
-  // Check if already translated
+  // Skip if exactly same as what we're already processing
+  if (trimmedText === pendingSubtitleText) {
+    return;
+  }
+
+  // Update pending text - this is what we're waiting to stabilize
+  pendingSubtitleText = trimmedText;
+
+  // Clear previous timer - text changed, restart the wait
+  if (subtitleDebounceTimer) {
+    clearTimeout(subtitleDebounceTimer);
+    subtitleDebounceTimer = null;
+  }
+
+  // Check cache first - if cached, show immediately
   const cached = translatedCues.get(trimmedText);
   if (cached) {
+    lastSubtitleText = trimmedText;
+    currentDisplayedText = trimmedText;
     showSubtitleOverlay(trimmedText, cached);
     return;
   }
 
-  // Show original while translating
-  showSubtitleOverlay(trimmedText, '翻译中...');
+  // Wait for subtitle to stabilize (no changes for DEBOUNCE_DELAY ms)
+  // This ensures we capture the complete sentence, not partial words
+  subtitleDebounceTimer = setTimeout(() => {
+    // Double check the text hasn't changed while we waited
+    if (pendingSubtitleText === trimmedText) {
+      lastSubtitleText = trimmedText;
+      processSubtitleTranslation(trimmedText);
+    }
+  }, DEBOUNCE_DELAY);
+}
+
+// Process the actual translation
+async function processSubtitleTranslation(text: string): Promise<void> {
+  // Check cache again (might have been cached while waiting)
+  const cached = translatedCues.get(text);
+  if (cached) {
+    currentDisplayedText = text;
+    showSubtitleOverlay(text, cached);
+    return;
+  }
+
+  // Mark as translating
+  isTranslating = true;
 
   try {
-    const translation = await translator.translate(trimmedText);
-    translatedCues.set(trimmedText, translation);
-    showSubtitleOverlay(trimmedText, translation);
-  } catch (error) {
-    console.error('[YouTube Translator] Translation error:', error);
-    // Show original only on error
-    showSubtitleOverlay(trimmedText, '');
+    const translation = await translator.translate(text);
+    translatedCues.set(text, translation);
+
+    // Always show translation when ready
+    // New translations will naturally replace old ones
+    // This prevents the "translation appears on next cue" problem
+    currentDisplayedText = text;
+    showSubtitleOverlay(text, translation);
+  } catch {
+    // On error, show original without translation
+    currentDisplayedText = text;
+    showSubtitleOverlay(text, '');
+  } finally {
+    isTranslating = false;
   }
 }
 
 // === Subtitle Overlay UI ===
 
+// Type for elements with stored shadow reference
+type ElementWithShadow = HTMLElement & { _shadow?: ShadowRoot };
+
 function createSubtitleContainer(): HTMLDivElement {
-  let container = document.getElementById(SUBTITLE_CONTAINER_ID) as HTMLDivElement;
+  let container = document.getElementById(SUBTITLE_CONTAINER_ID) as HTMLDivElement & { _shadow?: ShadowRoot };
 
   if (!container) {
-    container = document.createElement('div');
+    container = document.createElement('div') as HTMLDivElement & { _shadow?: ShadowRoot };
     container.id = SUBTITLE_CONTAINER_ID;
 
     // Use Shadow DOM for style isolation
@@ -216,40 +381,43 @@ function createSubtitleContainer(): HTMLDivElement {
       <style>
         :host {
           all: initial;
-          position: fixed;
-          bottom: 80px;
-          left: 50%;
-          transform: translateX(-50%);
-          z-index: 2147483647;
+          display: block;
+          width: 100%;
+          margin: 12px 0;
           pointer-events: none;
         }
         .subtitle-box {
-          background: rgba(0, 0, 0, 0.85);
+          background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
           border-radius: 8px;
-          padding: 12px 20px;
-          max-width: 80vw;
+          padding: 16px 24px;
+          margin: 0 auto;
+          max-width: 100%;
           text-align: center;
           pointer-events: auto;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+          opacity: 1;
+          transition: opacity 0.3s ease-out;
+        }
+        .subtitle-box.hidden {
+          opacity: 0;
+          pointer-events: none;
         }
         .original {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          font-size: 20px;
+          font-size: 18px;
           color: #ffffff;
-          line-height: 1.4;
-          margin-bottom: 8px;
-          text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+          line-height: 1.5;
+          margin-bottom: 10px;
         }
         .translation {
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-          font-size: 18px;
+          font-size: 16px;
           color: #ffd700;
-          line-height: 1.4;
-          text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+          line-height: 1.5;
+          min-height: 0;
         }
         .translation:empty {
-          display: none;
-        }
-        .hidden {
           display: none;
         }
       </style>
@@ -259,10 +427,19 @@ function createSubtitleContainer(): HTMLDivElement {
       </div>
     `;
 
-    // Find YouTube player container
-    const playerContainer = document.querySelector('.html5-video-player');
-    if (playerContainer) {
-      playerContainer.appendChild(container);
+    // Store shadow reference for later access (closed shadow DOM returns null for shadowRoot)
+    container._shadow = shadow;
+
+    // Insert below the video player
+    const belowContainer = document.querySelector('#below');
+    const playerContainer = document.querySelector('#player-container-outer, #player-container, #movie_player');
+
+    if (belowContainer) {
+      // Insert at the beginning of the below section
+      belowContainer.insertBefore(container, belowContainer.firstChild);
+    } else if (playerContainer?.parentElement) {
+      // Insert after the player container
+      playerContainer.parentElement.insertBefore(container, playerContainer.nextSibling);
     } else {
       document.body.appendChild(container);
     }
@@ -272,8 +449,8 @@ function createSubtitleContainer(): HTMLDivElement {
 }
 
 function showSubtitleOverlay(original: string, translation: string): void {
-  const container = createSubtitleContainer();
-  const shadow = container.shadowRoot;
+  const container = createSubtitleContainer() as ElementWithShadow;
+  const shadow = container._shadow;
   if (!shadow) return;
 
   const box = shadow.querySelector('.subtitle-box');
@@ -288,94 +465,15 @@ function showSubtitleOverlay(original: string, translation: string): void {
 }
 
 function hideSubtitleOverlay(): void {
-  const container = document.getElementById(SUBTITLE_CONTAINER_ID);
+  const container = document.getElementById(SUBTITLE_CONTAINER_ID) as ElementWithShadow | null;
   if (!container) return;
 
-  const shadow = container.shadowRoot;
+  const shadow = container._shadow;
   if (!shadow) return;
 
   const box = shadow.querySelector('.subtitle-box');
   if (box) {
     box.classList.add('hidden');
-  }
-}
-
-// === Toggle Button ===
-
-function injectToggleButton(): void {
-  // Wait for YouTube controls to load
-  const checkControls = setInterval(() => {
-    const rightControls = document.querySelector('.ytp-right-controls');
-    if (rightControls && !document.getElementById(SUBTITLE_TOGGLE_ID)) {
-      clearInterval(checkControls);
-      createToggleButton(rightControls);
-    }
-  }, 1000);
-}
-
-function createToggleButton(container: Element): void {
-  const button = document.createElement('button');
-  button.id = SUBTITLE_TOGGLE_ID;
-  button.className = 'ytp-button';
-  button.title = '双语字幕翻译';
-  button.setAttribute('aria-label', '双语字幕翻译');
-
-  // Use Shadow DOM for the button content
-  const shadow = button.attachShadow({ mode: 'closed' });
-  shadow.innerHTML = `
-    <style>
-      :host {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 48px;
-        height: 48px;
-        cursor: pointer;
-      }
-      .icon {
-        width: 24px;
-        height: 24px;
-        fill: #fff;
-        opacity: ${isEnabled ? '1' : '0.5'};
-        transition: opacity 0.2s;
-      }
-      :host(:hover) .icon {
-        opacity: 1;
-      }
-    </style>
-    <svg class="icon" viewBox="0 0 24 24">
-      <path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
-    </svg>
-  `;
-
-  button.addEventListener('click', () => {
-    isEnabled = !isEnabled;
-    updateToggleButtonState(button);
-
-    if (isEnabled) {
-      toast.success('双语字幕已开启');
-    } else {
-      toast.info('双语字幕已关闭');
-      hideSubtitleOverlay();
-    }
-  });
-
-  // Insert before fullscreen button
-  const fullscreenBtn = container.querySelector('.ytp-fullscreen-button');
-  if (fullscreenBtn) {
-    container.insertBefore(button, fullscreenBtn);
-  } else {
-    container.appendChild(button);
-  }
-}
-
-function updateToggleButtonState(button: HTMLButtonElement): void {
-  const shadow = button.shadowRoot;
-  if (!shadow) return;
-
-  const icon = shadow.querySelector('.icon') as SVGElement;
-  if (icon) {
-    icon.style.opacity = isEnabled ? '1' : '0.5';
   }
 }
 
@@ -423,9 +521,8 @@ chrome.runtime.onMessage.addListener(
   (message: YouTubeMessage, _sender, sendResponse) => {
     if (message.type === 'TOGGLE_YOUTUBE_SUBTITLE') {
       isEnabled = !isEnabled;
-      const toggleBtn = document.getElementById(SUBTITLE_TOGGLE_ID) as HTMLButtonElement;
-      if (toggleBtn) {
-        updateToggleButtonState(toggleBtn);
+      if (!isEnabled) {
+        hideSubtitleOverlay();
       }
       sendResponse({ success: true, enabled: isEnabled });
       return true;
@@ -448,29 +545,51 @@ function cleanup(): void {
     subtitleObserver = null;
   }
 
+  if (subtitleDebounceTimer) {
+    clearTimeout(subtitleDebounceTimer);
+    subtitleDebounceTimer = null;
+  }
+
   const container = document.getElementById(SUBTITLE_CONTAINER_ID);
   if (container) {
     container.remove();
   }
 
-  const toggle = document.getElementById(SUBTITLE_TOGGLE_ID);
-  if (toggle) {
-    toggle.remove();
-  }
-
   currentVideo = null;
   translatedCues.clear();
+  lastSubtitleText = '';
+  pendingSubtitleText = '';
+  currentDisplayedText = '';
+  isTranslating = false;
+  useTextTrackAPI = false;
+  lastTextTrackCueTime = 0;
+  sentenceBuffer = '';
+  if (sentenceTimer) {
+    clearTimeout(sentenceTimer);
+    sentenceTimer = null;
+  }
+}
+
+function reinitialize(): void {
+  // Only re-initialize on watch pages
+  if (!window.location.pathname.startsWith('/watch')) {
+    return;
+  }
+
+  // Re-inject elements
+  checkForVideoPlayer();
 }
 
 // Handle YouTube SPA navigation
 window.addEventListener('yt-navigate-start', cleanup);
+window.addEventListener('yt-navigate-finish', reinitialize);
 
 // === Entry Point ===
 
 // Only run on YouTube watch pages
 if (window.location.hostname.includes('youtube.com')) {
-  initialize().catch((error) => {
-    console.error('[YouTube Translator] Failed to initialize:', error);
+  initialize().catch(() => {
+    // Silent fail
   });
 
   setupWordSaving();
@@ -478,7 +597,9 @@ if (window.location.hostname.includes('youtube.com')) {
 
 // Export for testing
 export {
-  handleSubtitleCue,
+  handleTextTrackCue,
+  handleMutationObserverCue,
+  processBufferedSentence,
   showSubtitleOverlay,
   hideSubtitleOverlay,
   cleanup,
