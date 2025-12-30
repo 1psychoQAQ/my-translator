@@ -16,6 +16,7 @@ final class SelectionOverlayWindow: NSWindow {
 
     private let completion: (SelectionAction) -> Void
     private let onTranslate: (CGRect) async throws -> (original: String, translated: String)
+    private let frozenScreenImage: CGImage?
     private var globalKeyboardMonitor: Any?
     private var localKeyboardMonitor: Any?
     private var hasCompleted = false
@@ -23,9 +24,11 @@ final class SelectionOverlayWindow: NSWindow {
     private var overlayView: OverlayView?
 
     init(
+        frozenScreenImage: CGImage?,
         onTranslate: @escaping (CGRect) async throws -> (original: String, translated: String),
         completion: @escaping (SelectionAction) -> Void
     ) {
+        self.frozenScreenImage = frozenScreenImage
         self.onTranslate = onTranslate
         self.completion = completion
 
@@ -67,6 +70,7 @@ final class SelectionOverlayWindow: NSWindow {
     private func setupOverlayView() {
         let view = OverlayView(
             frame: self.frame,
+            frozenScreenImage: frozenScreenImage,
             onTranslate: { [weak self] rect in
                 await self?.performTranslation(rect: rect)
             },
@@ -233,10 +237,12 @@ private class OverlayView: NSView {
     private let onSaveToWordBook: (String, String) -> Void
     private let onCancel: () -> Void
 
-    private let selectionLayer = CAShapeLayer()
-    private let dimLayer = CALayer()
+    private let backgroundLayer = CALayer()       // 固定屏幕背景
+    private let dimLayer = CAShapeLayer()         // 暗色遮罩层（带选区镂空）
+    private let selectionLayer = CAShapeLayer()   // 选区边框
 
     init(frame: NSRect,
+         frozenScreenImage: CGImage?,
          onTranslate: @escaping (CGRect) async -> Void,
          onCopy: @escaping (CGRect) -> Void,
          onSaveToWordBook: @escaping (String, String) -> Void,
@@ -249,16 +255,31 @@ private class OverlayView: NSView {
 
         wantsLayer = true
 
-        // 半透明遮罩层
-        dimLayer.backgroundColor = NSColor.black.withAlphaComponent(0.3).cgColor
+        // 固定屏幕背景层
+        if let image = frozenScreenImage {
+            backgroundLayer.contents = image
+            backgroundLayer.frame = bounds
+            backgroundLayer.contentsGravity = .resizeAspectFill
+            layer?.addSublayer(backgroundLayer)
+        }
+
+        // 暗色遮罩层 - 使用 even-odd 规则实现镂空效果
+        dimLayer.fillColor = NSColor.black.withAlphaComponent(0.4).cgColor
+        dimLayer.fillRule = .evenOdd
         dimLayer.frame = bounds
+        // 初始时全屏暗色显示
+        dimLayer.path = CGPath(rect: bounds, transform: nil)
         layer?.addSublayer(dimLayer)
 
-        // 选区边框
-        selectionLayer.strokeColor = NSColor.systemBlue.cgColor
-        selectionLayer.fillColor = NSColor.systemBlue.withAlphaComponent(0.1).cgColor
+        // 选区边框：白色虚线
+        selectionLayer.strokeColor = NSColor.white.cgColor
+        selectionLayer.fillColor = NSColor.clear.cgColor
         selectionLayer.lineWidth = 2
-        selectionLayer.lineDashPattern = [5, 3]
+        selectionLayer.lineDashPattern = [6, 4]
+        selectionLayer.shadowColor = NSColor.black.cgColor
+        selectionLayer.shadowOffset = CGSize(width: 0, height: 0)
+        selectionLayer.shadowRadius = 2
+        selectionLayer.shadowOpacity = 0.5
         layer?.addSublayer(selectionLayer)
     }
 
@@ -303,7 +324,17 @@ private class OverlayView: NSView {
     private func updateSelectionLayer() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+
+        // 选区边框
         selectionLayer.path = CGPath(rect: currentRect, transform: nil)
+
+        // 暗色遮罩 - 使用 even-odd 规则实现镂空效果
+        // 外层矩形覆盖全屏，内层矩形（选区）被镂空
+        let maskPath = CGMutablePath()
+        maskPath.addRect(bounds)        // 全屏区域
+        maskPath.addRect(currentRect)   // 选区（镂空）
+        dimLayer.path = maskPath
+
         CATransaction.commit()
     }
 
@@ -340,7 +371,7 @@ private class OverlayView: NSView {
         )
 
         let hostingView = NSHostingView(rootView: AnyView(toolbarView))
-        positionView(hostingView, below: currentRect, preferredWidth: 180, preferredHeight: 44)
+        positionToolbar(hostingView, attachedTo: currentRect)
         addSubview(hostingView)
         currentHostingView = hostingView
     }
@@ -350,7 +381,7 @@ private class OverlayView: NSView {
 
         let loadingView = LoadingView()
         let hostingView = NSHostingView(rootView: AnyView(loadingView))
-        positionView(hostingView, below: currentRect, preferredWidth: 120, preferredHeight: 40)
+        positionToolbar(hostingView, attachedTo: currentRect)
         addSubview(hostingView)
         currentHostingView = hostingView
     }
@@ -371,7 +402,7 @@ private class OverlayView: NSView {
         )
 
         let hostingView = NSHostingView(rootView: AnyView(resultView))
-        positionView(hostingView, below: currentRect, preferredWidth: 350, preferredHeight: 200)
+        positionResultView(hostingView, below: currentRect, preferredWidth: 320, preferredHeight: 180)
         addSubview(hostingView)
         currentHostingView = hostingView
     }
@@ -385,12 +416,39 @@ private class OverlayView: NSView {
         }
 
         let hostingView = NSHostingView(rootView: AnyView(errorView))
-        positionView(hostingView, below: currentRect, preferredWidth: 250, preferredHeight: 80)
+        positionToolbar(hostingView, attachedTo: currentRect)
         addSubview(hostingView)
         currentHostingView = hostingView
     }
 
-    private func positionView(_ view: NSView, below rect: CGRect, preferredWidth: CGFloat, preferredHeight: CGFloat) {
+    /// 定位悬浮工具条 - 贴着选区底部居中
+    private func positionToolbar(_ view: NSView, attachedTo rect: CGRect) {
+        // 让 SwiftUI 自动计算尺寸
+        view.setFrameSize(view.fittingSize)
+        let size = view.frame.size
+
+        // 居中于选区底部，紧贴选区
+        var x = rect.midX - size.width / 2
+        var y = rect.origin.y - size.height - 6
+
+        // 如果下方空间不足，放到选区上方
+        if y < 8 {
+            y = rect.maxY + 6
+        }
+
+        // 确保不超出屏幕左右边界
+        if x < 8 {
+            x = 8
+        }
+        if x + size.width > bounds.width - 8 {
+            x = bounds.width - size.width - 8
+        }
+
+        view.frame = CGRect(x: x, y: y, width: size.width, height: size.height)
+    }
+
+    /// 定位结果视图 - 选区下方
+    private func positionResultView(_ view: NSView, below rect: CGRect, preferredWidth: CGFloat, preferredHeight: CGFloat) {
         var x = rect.origin.x
         var y = rect.origin.y - preferredHeight - 8
 
@@ -427,39 +485,86 @@ private class OverlayView: NSView {
 
 // MARK: - SwiftUI Views
 
+/// 系统级悬浮操作条 - 图标按钮组
 private struct ToolbarView: View {
     let onTranslate: () -> Void
     let onCopy: () -> Void
     let onCancel: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            Button(action: onTranslate) {
-                HStack(spacing: 4) {
-                    Image(systemName: "doc.text.magnifyingglass")
-                    Text("翻译")
-                }
-            }
-            .buttonStyle(ToolbarButtonStyle(bgColor: .blue))
+        HStack(spacing: 2) {
+            // 翻译按钮
+            FloatingActionButton(
+                icon: "character.book.closed",
+                tooltip: "翻译",
+                action: onTranslate
+            )
 
-            Button(action: onCopy) {
-                HStack(spacing: 4) {
-                    Image(systemName: "doc.on.doc")
-                    Text("复制")
-                }
-            }
-            .buttonStyle(ToolbarButtonStyle(bgColor: .green))
+            Divider()
+                .frame(height: 20)
+                .background(Color.white.opacity(0.3))
 
-            Button(action: onCancel) {
-                Image(systemName: "xmark")
-            }
-            .buttonStyle(ToolbarButtonStyle(bgColor: .gray))
+            // 复制按钮
+            FloatingActionButton(
+                icon: "doc.on.doc",
+                tooltip: "复制",
+                action: onCopy
+            )
+
+            Divider()
+                .frame(height: 20)
+                .background(Color.white.opacity(0.3))
+
+            // 取消按钮
+            FloatingActionButton(
+                icon: "xmark",
+                tooltip: "取消",
+                action: onCancel
+            )
         }
-        .padding(8)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.black.opacity(0.85))
-        )
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(FloatingBarBackground())
+    }
+}
+
+/// 悬浮操作条图标按钮
+private struct FloatingActionButton: View {
+    let icon: String
+    let tooltip: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.white)
+                .frame(width: 32, height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isHovered ? Color.white.opacity(0.2) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .help(tooltip)
+    }
+}
+
+/// 毛玻璃背景
+private struct FloatingBarBackground: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: 10)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 2)
     }
 }
 
@@ -467,16 +572,15 @@ private struct LoadingView: View {
     var body: some View {
         HStack(spacing: 8) {
             ProgressView()
-                .scaleEffect(0.8)
-            Text("翻译中...")
-                .font(.system(size: 13))
+                .scaleEffect(0.7)
+                .colorInvert()
+            Text("识别中...")
+                .font(.system(size: 12))
                 .foregroundColor(.white)
         }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.black.opacity(0.85))
-        )
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(FloatingBarBackground())
     }
 }
 
@@ -487,56 +591,81 @@ private struct OverlayResultView: View {
     let onCancel: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             // 原文
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("原文")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.gray)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.6))
                 ScrollView {
                     Text(original)
-                        .font(.system(size: 13))
+                        .font(.system(size: 12))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                 }
-                .frame(maxHeight: 50)
+                .frame(maxHeight: 40)
             }
 
             Divider()
+                .background(Color.white.opacity(0.2))
 
             // 译文
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("译文")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.gray)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(0.6))
                 ScrollView {
                     Text(translated)
-                        .font(.system(size: 13))
+                        .font(.system(size: 12))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
                 }
-                .frame(maxHeight: 50)
+                .frame(maxHeight: 40)
             }
 
-            // 按钮
-            HStack {
-                Button("收藏到单词本", action: onSave)
-                    .buttonStyle(ToolbarButtonStyle(bgColor: .blue))
+            // 操作按钮
+            HStack(spacing: 8) {
+                Button(action: onSave) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bookmark")
+                            .font(.system(size: 11))
+                        Text("收藏")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.blue)
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onCancel) {
+                    Text("关闭")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.8))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.white.opacity(0.15))
+                        )
+                }
+                .buttonStyle(.plain)
 
                 Spacer()
 
-                Text("ESC 退出")
-                    .font(.system(size: 11))
-                    .foregroundColor(.gray)
+                Text("ESC")
+                    .font(.system(size: 10))
+                    .foregroundColor(.white.opacity(0.4))
             }
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.black.opacity(0.9))
-        )
+        .padding(10)
+        .background(FloatingBarBackground())
     }
 }
 
@@ -545,35 +674,25 @@ private struct ErrorView: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: 8) {
-            Text("❌ \(message)")
-                .font(.system(size: 13))
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 14))
+                .foregroundColor(.orange)
+
+            Text(message)
+                .font(.system(size: 12))
                 .foregroundColor(.white)
-                .multilineTextAlignment(.center)
+                .lineLimit(2)
 
-            Button("关闭", action: onDismiss)
-                .buttonStyle(ToolbarButtonStyle(bgColor: .gray))
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            .buttonStyle(.plain)
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.black.opacity(0.9))
-        )
-    }
-}
-
-private struct ToolbarButtonStyle: ButtonStyle {
-    let bgColor: Color
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 13, weight: .medium))
-            .foregroundColor(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(configuration.isPressed ? bgColor.opacity(0.7) : bgColor)
-            )
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(FloatingBarBackground())
     }
 }

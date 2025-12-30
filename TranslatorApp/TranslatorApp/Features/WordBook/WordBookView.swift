@@ -4,6 +4,7 @@ import AppKit
 struct WordBookView: View {
 
     @StateObject private var viewModel: WordBookViewModel
+    @State private var showingSettings = false
 
     init(viewModel: WordBookViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -11,17 +12,29 @@ struct WordBookView: View {
 
     var body: some View {
         NavigationStack {
-            VStack {
-                if viewModel.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let error = viewModel.errorMessage {
-                    errorView(message: error)
-                } else if viewModel.words.isEmpty {
-                    emptyStateView
-                } else {
-                    wordListView
+            ZStack(alignment: .bottomLeading) {
+                VStack {
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if let error = viewModel.errorMessage {
+                        errorView(message: error)
+                    } else if viewModel.words.isEmpty {
+                        emptyStateView
+                    } else {
+                        wordListView
+                    }
                 }
+
+                // 左下角设置按钮
+                Button(action: { showingSettings = true }) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(8)
+                .help("设置")
             }
             .searchable(text: $viewModel.searchText, prompt: "搜索单词")
             .onChange(of: viewModel.searchText) { _, _ in
@@ -35,6 +48,9 @@ struct WordBookView: View {
                     }
                     .help("刷新")
                 }
+            }
+            .sheet(isPresented: $showingSettings) {
+                WordBookSettingsView()
             }
         }
         .onAppear {
@@ -150,5 +166,47 @@ struct WordRowView: View {
         case "video": return "play.rectangle"
         default: return "doc.text"
         }
+    }
+}
+
+// MARK: - WordBookSettingsView
+
+struct WordBookSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // 标题栏
+            HStack {
+                Text("设置")
+                    .font(.headline)
+                Spacer()
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+
+            Divider()
+
+            // 设置内容
+            Form {
+                Section {
+                    HStack {
+                        Text("截图翻译")
+                        Spacer()
+                        Text("⌘ + ⇧ + S")
+                            .foregroundColor(.secondary)
+                            .font(.system(.body, design: .monospaced))
+                    }
+                } header: {
+                    Text("快捷键")
+                }
+            }
+            .formStyle(.grouped)
+        }
+        .frame(width: 320, height: 200)
     }
 }

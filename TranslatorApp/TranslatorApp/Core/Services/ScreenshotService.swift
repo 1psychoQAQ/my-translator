@@ -28,8 +28,12 @@ final class ScreenshotService: ScreenshotServiceProtocol {
         // 隐藏所有其他应用窗口（避免遮挡截图选区）
         hideOtherWindows()
 
+        // 先截取全屏作为固定背景
+        let frozenImage = await captureFullScreen()
+
         let action = await withCheckedContinuation { (continuation: CheckedContinuation<SelectionAction, Never>) in
             let window = SelectionOverlayWindow(
+                frozenScreenImage: frozenImage,
                 onTranslate: onTranslate,
                 completion: { [weak self] action in
                     self?.currentSelectionWindow = nil
@@ -43,6 +47,34 @@ final class ScreenshotService: ScreenshotServiceProtocol {
         }
 
         return action
+    }
+
+    /// 截取全屏作为固定背景
+    private func captureFullScreen() async -> CGImage? {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+
+            guard let display = content.displays.first else {
+                return nil
+            }
+
+            let filter = SCContentFilter(display: display, excludingWindows: [])
+
+            let config = SCStreamConfiguration()
+            config.width = Int(display.width * 2)  // Retina
+            config.height = Int(display.height * 2)
+            config.showsCursor = false
+
+            let image = try await SCScreenshotManager.captureImage(
+                contentFilter: filter,
+                configuration: config
+            )
+
+            return image
+        } catch {
+            print("❌ 截取全屏失败: \(error.localizedDescription)")
+            return nil
+        }
     }
 
     /// 隐藏所有其他应用窗口（截图时避免遮挡）
