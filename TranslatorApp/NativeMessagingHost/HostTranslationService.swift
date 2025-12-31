@@ -37,9 +37,30 @@ final class HostTranslationService {
         self.translationWindow = window
     }
 
-    func translate(text: String, from sourceLanguage: String?, to targetLanguage: String) async throws -> String {
+    func translate(text: String, from sourceLanguage: String?, to targetLanguage: String, context: String?) async throws -> String {
         guard let viewModel = viewModel else {
             throw TranslationError.notInitialized
+        }
+
+        // 如果提供了上下文句子，使用句子进行翻译以获得更准确的语境翻译
+        // 策略：翻译整个句子，但只返回单词的翻译
+        if let context = context, !context.isEmpty, text.split(separator: " ").count <= 3 {
+            // 对于短词组，先翻译整个句子以"预热"翻译引擎的语境理解
+            // 这有助于提高后续单词翻译的准确性
+            _ = try await viewModel.translate(
+                text: context,
+                from: sourceLanguage ?? "en",
+                to: targetLanguage
+            )
+
+            // 翻译单词（翻译引擎已经有了句子的上下文）
+            let wordTranslation = try await viewModel.translate(
+                text: text,
+                from: sourceLanguage ?? "en",
+                to: targetLanguage
+            )
+
+            return wordTranslation
         }
 
         return try await viewModel.translate(

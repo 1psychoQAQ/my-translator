@@ -47,6 +47,7 @@ final class HostWordBookService: Sendable {
         translation: String,
         source: String,
         sourceURL: String?,
+        sentence: String?,
         tags: [String],
         createdAt: Date
     ) throws {
@@ -69,6 +70,7 @@ final class HostWordBookService: Sendable {
             translation: translation,
             source: source,
             sourceURL: sourceURL,
+            sentence: sentence,
             tags: tags,
             createdAt: createdAt
         )
@@ -90,6 +92,7 @@ final class Word {
     var translation: String
     var source: String
     var sourceURL: String?
+    var sentence: String?  // 完整句子，用于语境回顾
     var tags: [String]
     var createdAt: Date
     var syncedAt: Date?
@@ -100,6 +103,7 @@ final class Word {
         translation: String,
         source: String = "webpage",
         sourceURL: String? = nil,
+        sentence: String? = nil,
         tags: [String] = [],
         createdAt: Date = Date(),
         syncedAt: Date? = nil
@@ -109,6 +113,7 @@ final class Word {
         self.translation = translation
         self.source = source
         self.sourceURL = sourceURL
+        self.sentence = sentence
         self.tags = tags
         self.createdAt = createdAt
         self.syncedAt = syncedAt

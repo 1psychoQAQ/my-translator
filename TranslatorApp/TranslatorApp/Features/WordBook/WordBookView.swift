@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Carbon
+import AVFoundation
 
 struct WordBookView: View {
 
@@ -132,17 +133,48 @@ struct WordBookView: View {
 
 struct WordRowView: View {
     let word: Word
+    @State private var isExpanded = false
+    @State private var isSpeaking = false
+
+    private let synthesizer = AVSpeechSynthesizer()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(word.text)
-                .font(.headline)
-                .lineLimit(2)
+            HStack(alignment: .center, spacing: 6) {
+                Text(word.text)
+                    .font(.headline)
+                    .lineLimit(2)
+
+                Button(action: speakWord) {
+                    Image(systemName: isSpeaking ? "speaker.wave.3.fill" : "speaker.wave.2")
+                        .font(.system(size: 12))
+                        .foregroundColor(isSpeaking ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("朗读单词")
+            }
 
             Text(word.translation)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
                 .lineLimit(2)
+
+            // 显示句子（如果有）
+            if let sentence = word.sentence, !sentence.isEmpty {
+                Text(sentence)
+                    .font(.caption)
+                    .foregroundColor(.secondary.opacity(0.8))
+                    .lineLimit(isExpanded ? nil : 2)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(Color.secondary.opacity(0.05))
+                    .cornerRadius(4)
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isExpanded.toggle()
+                        }
+                    }
+            }
 
             HStack {
                 Label(word.source, systemImage: sourceIcon)
@@ -150,6 +182,19 @@ struct WordRowView: View {
                     .foregroundColor(.secondary)
 
                 Spacer()
+
+                // 显示链接按钮（如果有 sourceURL）
+                if let urlString = word.sourceURL {
+                    Button(action: {
+                        openURLWithTextFragment(urlString: urlString, text: word.text, sentence: word.sentence)
+                    }) {
+                        Label("打开原网页", systemImage: "arrow.up.right.square")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.accentColor)
+                    .help(urlString)
+                }
 
                 Text(word.createdAt, style: .date)
                     .font(.caption)
@@ -166,6 +211,75 @@ struct WordRowView: View {
         case "webpage": return "globe"
         case "video": return "play.rectangle"
         default: return "doc.text"
+        }
+    }
+
+    /// 朗读单词
+    private func speakWord() {
+        synthesizer.stopSpeaking(at: .immediate)
+
+        let utterance = AVSpeechUtterance(string: word.text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        // 使用系统完全默认值，不做任何自定义调整
+
+        isSpeaking = true
+        synthesizer.speak(utterance)
+
+        // 延迟重置状态（估算朗读时间）
+        DispatchQueue.main.asyncAfter(deadline: .now() + Double(word.text.count) * 0.08 + 0.3) {
+            isSpeaking = false
+        }
+    }
+
+    /// 使用 Text Fragment 打开 URL，跳转到指定文本位置
+    /// Chrome 支持 #:~:text=prefix-,word,-suffix 语法，可以精确定位
+    private func openURLWithTextFragment(urlString: String, text: String, sentence: String?) {
+        // 移除已有的 fragment
+        var baseURL = urlString
+        if let hashIndex = urlString.firstIndex(of: "#") {
+            baseURL = String(urlString[..<hashIndex])
+        }
+
+        var fragmentURL: String
+
+        // 如果有句子，使用句子上下文来精确定位
+        if let sentence = sentence, !sentence.isEmpty,
+           let range = sentence.range(of: text, options: .caseInsensitive) {
+
+            // 提取前缀（单词前的文本，最多取 30 个字符）
+            let prefixEnd = range.lowerBound
+            let prefixStart = sentence.index(prefixEnd, offsetBy: -min(30, sentence.distance(from: sentence.startIndex, to: prefixEnd)), limitedBy: sentence.startIndex) ?? sentence.startIndex
+            var prefix = String(sentence[prefixStart..<prefixEnd]).trimmingCharacters(in: .whitespaces)
+
+            // 提取后缀（单词后的文本，最多取 30 个字符）
+            let suffixStart = range.upperBound
+            let suffixEnd = sentence.index(suffixStart, offsetBy: min(30, sentence.distance(from: suffixStart, to: sentence.endIndex)), limitedBy: sentence.endIndex) ?? sentence.endIndex
+            var suffix = String(sentence[suffixStart..<suffixEnd]).trimmingCharacters(in: .whitespaces)
+
+            // URL 编码
+            let encodedText = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
+            prefix = prefix.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? prefix
+            suffix = suffix.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? suffix
+
+            // 构建带上下文的 Text Fragment
+            // 格式: #:~:text=prefix-,word,-suffix
+            if !prefix.isEmpty && !suffix.isEmpty {
+                fragmentURL = "\(baseURL)#:~:text=\(prefix)-,\(encodedText),-\(suffix)"
+            } else if !prefix.isEmpty {
+                fragmentURL = "\(baseURL)#:~:text=\(prefix)-,\(encodedText)"
+            } else if !suffix.isEmpty {
+                fragmentURL = "\(baseURL)#:~:text=\(encodedText),-\(suffix)"
+            } else {
+                fragmentURL = "\(baseURL)#:~:text=\(encodedText)"
+            }
+        } else {
+            // 没有句子，只用单词
+            let encodedText = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
+            fragmentURL = "\(baseURL)#:~:text=\(encodedText)"
+        }
+
+        if let url = URL(string: fragmentURL) {
+            NSWorkspace.shared.open(url)
         }
     }
 }

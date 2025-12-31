@@ -4,7 +4,6 @@
 
 - [macOS App 验收规范](./validate-macos.md)
 - [Chrome 扩展验收规范](./validate-chrome.md)
-- [Flutter App 验收规范](./validate-flutter.md)
 
 ---
 
@@ -29,7 +28,7 @@
 | 翻译 | `translate(text) → translation` | `screenshotAndTranslate()` |
 | OCR | `extractText(image) → text` | `ocrAndSave()` |
 | 存储 | `save(word)` / `fetch()` | `translateAndSave()` |
-| 同步 | `upload()` / `download()` | `syncAndNotify()` |
+| 发音 | `speak(text)` | `translateAndSpeak()` |
 
 **原则**：一个函数/类只做一件事，组合在上层完成。
 
@@ -49,13 +48,12 @@
 |-----|---------|------|
 | macOS (Swift) | 协议 + 构造器注入 | `init(service: ServiceProtocol)` |
 | Chrome (TS) | 接口 + 工厂函数 | `createTranslator(messenger)` |
-| Flutter (Dart) | Riverpod Provider | `ref.watch(serviceProvider)` |
 
 ### 哪些需要 DI？
 
 | 类型 | 需要 DI | 原因 |
 |-----|--------|------|
-| 核心服务（翻译/OCR/同步） | ✅ | 需测试，可能换实现 |
+| 核心服务（翻译/OCR/发音） | ✅ | 需测试，可能换实现 |
 | 数据仓库 | ✅ | 需 Mock 数据源 |
 | 系统 API 封装 | ❌ | 简单封装，固定实现 |
 | UI 组件 | ❌ | 通过状态驱动 |
@@ -79,16 +77,14 @@
 |-----|---------|
 | macOS (Swift) | `throws` + `do-catch` + 自定义 `Error` enum |
 | Chrome (TS) | `Promise` + `try-catch` + 自定义 `Error` class |
-| Flutter (Dart) | `Result<T>` sealed class 或 `try-catch` |
 
 ### 用户提示
 
 | 错误类型 | 提示方式 |
 |---------|---------|
-| 网络错误 | Toast/SnackBar: "网络连接失败，请检查网络" |
-| 翻译失败 | Alert/Dialog: "翻译服务暂时不可用" |
-| 权限拒绝 | 引导页: "请在系统设置中授权..." |
-| 数据冲突 | 静默处理，以时间戳为准 |
+| 网络错误 | Toast: "网络连接失败" |
+| 翻译失败 | Toast: "翻译服务暂时不可用" |
+| 权限拒绝 | 引导: "请在系统设置中授权..." |
 
 ---
 
@@ -108,11 +104,10 @@
 
 ### 各平台测试框架
 
-| 平台 | 单元测试 | 集成测试 | E2E |
-|-----|---------|---------|-----|
-| macOS | XCTest | XCTest | XCUITest |
-| Chrome | Vitest/Jest | Vitest/Jest | Puppeteer（可选） |
-| Flutter | flutter_test | flutter_test | integration_test |
+| 平台 | 单元测试 | 集成测试 |
+|-----|---------|---------|
+| macOS | XCTest | XCTest |
+| Chrome | Vitest | Vitest |
 
 ### 覆盖率要求
 
@@ -132,16 +127,14 @@
 
 | 平台 | 允许 |
 |-----|------|
-| macOS | SwiftUI, SwiftData, Vision, Translation, ScreenCaptureKit, Firebase SDK |
+| macOS | SwiftUI, SwiftData, Vision, Translation, ScreenCaptureKit, AVFoundation |
 | Chrome | Manifest V3 原生 API, TypeScript |
-| Flutter | flutter, riverpod, firebase_core, cloud_firestore, freezed |
 
 ### 禁止引入
 
 - ❌ 不必要的 UI 库（系统组件足够）
 - ❌ 不必要的网络库（系统 API 足够）
 - ❌ 不必要的工具库（几行代码能解决的）
-- ❌ 过度封装的状态管理库
 
 ---
 
@@ -154,7 +147,7 @@
 | 函数 | 动词开头，描述行为 | `translateText()`, `saveWord()` |
 | 变量 | 名词，描述内容 | `translatedText`, `wordList` |
 | 布尔值 | is/has/should 前缀 | `isLoading`, `hasError` |
-| 常量 | 大写下划线（JS/Dart）或驼峰（Swift） | `API_TIMEOUT`, `apiTimeout` |
+| 常量 | 大写下划线（JS）或驼峰（Swift） | `API_TIMEOUT`, `apiTimeout` |
 
 ### 函数设计
 
@@ -165,22 +158,18 @@
 
 ---
 
-## 验收总检查清单
+## 验收检查清单
 
-### Phase 1: macOS 基础
+### Phase 1: macOS 基础 ✅
 
-详见 [validate-macos.md](./validate-macos.md#phase-1-截图翻译--单词本)
+详见 [validate-macos.md](./validate-macos.md)
 
-### Phase 2: Chrome 扩展
+### Phase 2: Chrome 扩展 ✅
 
-详见 [validate-chrome.md](./validate-chrome.md#phase-2-沉浸式翻译--收藏)
+详见 [validate-chrome.md](./validate-chrome.md)
 
-### Phase 3: 视频字幕
+### Phase 3: 增强功能 ✅
 
-- macOS 部分：[validate-macos.md](./validate-macos.md#phase-3-视频字幕)
-- Chrome 部分：[validate-chrome.md](./validate-chrome.md#phase-3-视频字幕翻译)
-
-### Phase 4: 手机 App + 同步
-
-- macOS 同步：[validate-macos.md](./validate-macos.md#phase-4-同步)
-- Flutter App：[validate-flutter.md](./validate-flutter.md#phase-4-单词本--同步)
+- 句子上下文保存
+- Text Fragment 跳转
+- 系统发音

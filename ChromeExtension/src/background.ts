@@ -11,7 +11,6 @@ let translator: Translator;
 let wordBook: WordBookService;
 let nativeMessenger: NativeMessenger;
 let isInitialized = false;
-let isNativeConnected = false;
 
 // === Initialization ===
 
@@ -21,13 +20,6 @@ async function initialize(): Promise<void> {
   // Create native messenger (background script can use sendNativeMessage directly)
   nativeMessenger = createNativeMessenger();
   const cache = createTranslationCache();
-
-  // Check if native host is connected
-  try {
-    isNativeConnected = await nativeMessenger.isConnected();
-  } catch {
-    isNativeConnected = false;
-  }
 
   translator = createTranslator(nativeMessenger, cache);
   wordBook = createWordBookService(nativeMessenger);
@@ -59,22 +51,6 @@ interface CreateAndSaveWordMessage {
   sourceURL?: string;
 }
 
-interface TranslatePageMessage {
-  type: 'TRANSLATE_PAGE';
-}
-
-interface TranslateSelectionMessage {
-  type: 'TRANSLATE_SELECTION';
-}
-
-interface RestorePageMessage {
-  type: 'RESTORE_PAGE';
-}
-
-interface ToggleYouTubeSubtitleMessage {
-  type: 'TOGGLE_YOUTUBE_SUBTITLE';
-}
-
 interface NativeProxyMessage {
   type: 'NATIVE_MESSAGE';
   payload: NativeMessage;
@@ -84,10 +60,6 @@ type BackgroundMessage =
   | TranslateMessage
   | SaveWordMessage
   | CreateAndSaveWordMessage
-  | TranslatePageMessage
-  | TranslateSelectionMessage
-  | RestorePageMessage
-  | ToggleYouTubeSubtitleMessage
   | NativeProxyMessage;
 
 chrome.runtime.onMessage.addListener(
@@ -140,23 +112,6 @@ async function handleMessage(
         break;
       }
 
-      case 'TRANSLATE_PAGE':
-      case 'TRANSLATE_SELECTION':
-      case 'RESTORE_PAGE':
-      case 'TOGGLE_YOUTUBE_SUBTITLE': {
-        // Forward to active tab's content script
-        const [tab] = await chrome.tabs.query({
-          active: true,
-          currentWindow: true,
-        });
-        if (tab?.id) {
-          chrome.tabs.sendMessage(tab.id, message, sendResponse);
-        } else {
-          sendResponse({ success: false, error: 'No active tab' });
-        }
-        break;
-      }
-
       case 'NATIVE_MESSAGE': {
         // Proxy native messaging requests from content scripts
         try {
@@ -192,90 +147,6 @@ async function handleMessage(
     }
   }
 }
-
-// === Extension Icon Click Handler ===
-
-chrome.action.onClicked.addListener(async (tab) => {
-  if (!tab.id) return;
-
-  // Send message to content script to translate page
-  try {
-    await chrome.tabs.sendMessage(tab.id, { type: 'TRANSLATE_PAGE' });
-  } catch {
-    // Content script might not be loaded yet
-    console.error('[Translator Background] Failed to send message to tab');
-  }
-});
-
-// === Context Menu (Right-click) ===
-
-chrome.runtime.onInstalled.addListener(() => {
-  // Remove existing context menus first to avoid duplicates
-  chrome.contextMenus.removeAll(() => {
-    // Create context menu for selected text
-    chrome.contextMenus.create({
-      id: 'translate-selection',
-      title: '翻译选中文本',
-      contexts: ['selection'],
-    });
-
-    chrome.contextMenus.create({
-      id: 'translate-page',
-      title: '翻译整个页面',
-      contexts: ['page'],
-    });
-
-    chrome.contextMenus.create({
-      id: 'restore-page',
-      title: '恢复原文',
-      contexts: ['page'],
-    });
-
-    // YouTube-specific context menu
-    chrome.contextMenus.create({
-      id: 'toggle-youtube-subtitle',
-      title: '切换双语字幕',
-      contexts: ['page'],
-      documentUrlPatterns: ['*://www.youtube.com/*', '*://youtube.com/*'],
-    });
-  });
-});
-
-chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (!tab?.id) return;
-
-  if (info.menuItemId === 'translate-selection') {
-    try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TRANSLATE_SELECTION' });
-    } catch {
-      console.error('[Translator Background] Failed to translate selection');
-    }
-  }
-
-  if (info.menuItemId === 'translate-page') {
-    try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TRANSLATE_PAGE' });
-    } catch {
-      console.error('[Translator Background] Failed to translate page');
-    }
-  }
-
-  if (info.menuItemId === 'restore-page') {
-    try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'RESTORE_PAGE' });
-    } catch {
-      console.error('[Translator Background] Failed to restore page');
-    }
-  }
-
-  if (info.menuItemId === 'toggle-youtube-subtitle') {
-    try {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_YOUTUBE_SUBTITLE' });
-    } catch {
-      console.error('[Translator Background] Failed to toggle YouTube subtitle');
-    }
-  }
-});
 
 // Export for potential testing
 export { initialize, handleMessage };

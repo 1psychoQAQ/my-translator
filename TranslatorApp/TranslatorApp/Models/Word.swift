@@ -8,6 +8,7 @@ class Word {
     var translation: String
     var source: String
     var sourceURL: String?
+    var sentence: String?  // 完整句子，用于语境回顾
     var tags: [String]
     var createdAt: Date
     var syncedAt: Date?
@@ -18,6 +19,7 @@ class Word {
         translation: String,
         source: String = "screenshot",
         sourceURL: String? = nil,
+        sentence: String? = nil,
         tags: [String] = [],
         createdAt: Date = Date(),
         syncedAt: Date? = nil
@@ -27,6 +29,7 @@ class Word {
         self.translation = translation
         self.source = source
         self.sourceURL = sourceURL
+        self.sentence = sentence
         self.tags = tags
         self.createdAt = createdAt
         self.syncedAt = syncedAt

@@ -54,7 +54,8 @@ export function createWordBookService(
 export function createWordEntry(
   text: string,
   translation: string,
-  sourceURL?: string
+  sourceURL?: string,
+  sentence?: string
 ): WordEntry {
   return {
     id: crypto.randomUUID(),
@@ -62,6 +63,7 @@ export function createWordEntry(
     translation,
     source: 'webpage',
     sourceURL,
+    sentence,
     tags: [],
     createdAt: Date.now(),
   };

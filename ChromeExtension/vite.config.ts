@@ -32,7 +32,7 @@ function copyStaticFiles() {
 }
 
 // Get build target from environment
-const target = process.env.BUILD_TARGET as 'background' | 'content' | 'content_youtube' | undefined;
+const target = process.env.BUILD_TARGET as 'background' | 'content' | undefined;
 
 export default defineConfig({
   build: {
@@ -44,7 +44,6 @@ export default defineConfig({
         : {
             background: resolve(__dirname, 'src/background.ts'),
             content: resolve(__dirname, 'src/content.ts'),
-            content_youtube: resolve(__dirname, 'src/content_youtube.ts'),
           },
       output: target
         ? {

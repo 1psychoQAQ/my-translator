@@ -12,6 +12,7 @@
 - 全页翻译 ✅
 - 恢复原文 ✅
 - YouTube 双语字幕翻译 ✅ (Phase 3)
+- 悬浮翻译按钮 ✅ (页面右侧边缘)
 
 ## Architecture
 
@@ -51,6 +52,7 @@ ChromeExtension/
 │   ├── translator.ts       # 翻译模块
 │   ├── wordbook.ts         # 单词收藏模块
 │   ├── toast.ts            # Toast通知UI
+│   ├── floating-button.ts  # 悬浮翻译按钮
 │   ├── content.ts          # Content Script (网页翻译)
 │   ├── content_youtube.ts  # YouTube字幕翻译 (Phase 3)
 │   └── background.ts       # Service Worker
@@ -187,6 +189,7 @@ const shadow = element.attachShadow({ mode: 'closed' });
 - [x] YouTube双语字幕翻译（Phase 3）
 - [x] 字幕切换按钮（YouTube播放器内）
 - [x] 字幕中双击单词可收藏
+- [x] 悬浮翻译按钮（页面右侧边缘）
 - [ ] 无console.log遗留（开发阶段保留）
 - [ ] 无any类型
 - [ ] ESLint检查通过

@@ -4,23 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A personal translation toolkit consisting of three interconnected components:
+A personal translation toolkit consisting of two interconnected components:
 - **macOS App** (TranslatorApp): Screenshot translation, word book, native messaging host
-- **Chrome Extension** (ChromeExtension): Immersive web page translation, video subtitle translation
-- **Flutter App** (translator_flutter): Cross-platform word book with cloud sync
+- **Chrome Extension** (ChromeExtension): Web page word translation, word collection
 
 ## Architecture
 
 ```
-Chrome Extension ──Native Messaging──▶ macOS App ──Firebase──▶ Flutter App
-     │                                     │                        │
-     ├─ Immersive translation              ├─ Translation engine    ├─ Word book
-     └─ Video subtitles                    ├─ OCR (Vision)          └─ Cloud sync
-                                           ├─ Screenshot capture
-                                           └─ Word book (SwiftData)
+Chrome Extension ──Native Messaging──▶ NativeMessagingHost ──SwiftData──▶ TranslatorApp
+     │                                        │
+     ├─ 划词翻译                               ├─ Apple Translation Framework
+     └─ 单词收藏                               ├─ AVSpeechSynthesizer (发音)
+                                              └─ SwiftData (共享数据库)
 ```
 
-Data flows: Chrome extension sends translation requests to macOS app via Native Messaging. macOS app uses Apple Translation Framework. Word book syncs across all platforms via Firebase Firestore.
+Data flows: Chrome extension sends translation/speak/save requests to NativeMessagingHost via Native Messaging. NativeMessagingHost uses Apple Translation Framework for translation and AVSpeechSynthesizer for TTS. Word book data is stored in SwiftData and shared with TranslatorApp.
 
 ## Development Commands
 
@@ -42,62 +40,66 @@ npm run build      # Build for production
 npm run dev        # Development with watch
 npm run test       # Run Vitest tests
 npm run lint       # ESLint check
+npm run typecheck  # TypeScript check
 ```
 
-### Flutter App
+### NativeMessagingHost
 ```bash
-cd translator_flutter
-flutter pub get
-flutter run                    # Run on connected device
-flutter test                   # Run all tests
-flutter test test/path.dart    # Run single test file
-flutter analyze                # Static analysis
-flutter pub run build_runner build  # Generate mocks for testing
+cd TranslatorApp/NativeMessagingHost
+swift build           # Build
+swift build -c release  # Release build
 ```
 
 ## Technical Stack
 
 | Platform | UI | Storage | Key Frameworks |
 |----------|-----|---------|----------------|
-| macOS | SwiftUI | SwiftData | Translation Framework, Vision, ScreenCaptureKit |
+| macOS | SwiftUI | SwiftData | Translation Framework, Vision, ScreenCaptureKit, AVFoundation |
 | Chrome | DOM injection | - | Manifest V3, Native Messaging API |
-| Flutter | Material | Firebase Firestore | Riverpod, freezed |
 
 ## Core Design Patterns
 
 ### Dependency Injection
 - **macOS**: Protocol + constructor injection (`init(service: ServiceProtocol)`)
 - **Chrome**: Interface + factory functions (`createTranslator(messenger)`)
-- **Flutter**: Riverpod providers (`ref.watch(serviceProvider)`)
 
 ### Error Handling
 - All errors must be explicit; no silent failures
 - **macOS**: `throws` + custom `TranslatorError` enum
 - **Chrome**: `TranslatorError` class with `ErrorCode` enum
-- **Flutter**: `Result<T>` sealed class (Success/Failure)
 
 ### Module Responsibilities
 Each service does one thing only:
 - Translation: `translate(text) → String`
 - OCR: `extractText(image) → String`
 - Storage: `save(word)` / `fetch()`
-- Sync: `upload()` / `download()`
+- Speech: `speak(text)`
 
 ## Data Model (Word)
 
-Shared across all platforms:
+Shared between NativeMessagingHost and TranslatorApp:
 ```
 Word {
   id: UUID/String
   text: String
   translation: String
-  source: "webpage" | "video" | "screenshot"
+  source: "webpage" | "screenshot"
   sourceURL?: String
+  sentence?: String    // 上下文句子
   tags: [String]
   createdAt: Date
   syncedAt?: Date
 }
 ```
+
+## Native Messaging Actions
+
+| Action | Description |
+|--------|-------------|
+| `translate` | Translate text with optional context |
+| `saveWord` | Save word to SwiftData |
+| `speak` | Text-to-speech via AVSpeechSynthesizer |
+| `ping` | Health check |
 
 ## Key Files
 
@@ -105,15 +107,21 @@ Word {
 - `plan.md` - Development phases and task breakdown
 - `plan-macos.md` - macOS detailed implementation plan
 - `plan-chrome.md` - Chrome extension detailed implementation plan
-- `plan-flutter.md` - Flutter detailed implementation plan
 - `validate.md` - Cross-platform engineering principles
-- `validate-macos.md` - macOS acceptance criteria and protocols
+- `validate-macos.md` - macOS acceptance criteria
 - `validate-chrome.md` - Chrome extension acceptance criteria
-- `validate-flutter.md` - Flutter acceptance criteria
 
-## Development Phases
+## Project Structure
 
-1. **Phase 1**: macOS screenshot translation + local word book
-2. **Phase 2**: Chrome immersive translation + word collection via Native Messaging
-3. **Phase 3**: Video subtitle translation (YouTube, Bilibili)
-4. **Phase 4**: Flutter app + Firebase cloud sync
+```
+my-translator/
+├── TranslatorApp/              # macOS App
+│   ├── TranslatorApp/          # Main app (截图翻译 + 单词本)
+│   ├── NativeMessagingHost/    # Chrome 通信服务
+│   └── TranslatorAppTests/
+├── ChromeExtension/            # Chrome 扩展
+│   ├── src/                    # TypeScript 源码
+│   ├── tests/                  # Vitest 测试
+│   └── dist/                   # 构建输出
+└── docs/                       # 文档
+```

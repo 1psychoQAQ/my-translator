@@ -6,6 +6,7 @@ export interface WordEntry {
   translation: string;
   source: 'webpage' | 'video' | 'screenshot';
   sourceURL?: string;
+  sentence?: string; // 完整句子，用于语境回顾
   tags: string[];
   createdAt: number;
   syncedAt?: number;
@@ -14,7 +15,7 @@ export interface WordEntry {
 // === Service Interfaces (for DI) ===
 
 export interface Translator {
-  translate(text: string): Promise<string>;
+  translate(text: string, context?: string): Promise<string>;
 }
 
 export interface WordBookService {
@@ -35,7 +36,7 @@ export interface TranslationCache {
 
 // === Message Types ===
 
-export type NativeMessageAction = 'translate' | 'saveWord' | 'ping';
+export type NativeMessageAction = 'translate' | 'saveWord' | 'speak' | 'ping';
 
 export interface NativeMessage {
   action: NativeMessageAction;
@@ -46,6 +47,12 @@ export interface TranslatePayload {
   text: string;
   sourceLanguage?: string;
   targetLanguage: string;
+  context?: string; // 上下文句子，用于语境翻译
+}
+
+export interface SpeakPayload {
+  text: string;
+  language?: string; // 默认 en-US
 }
 
 export interface TranslateResponse {

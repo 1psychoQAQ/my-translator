@@ -138,6 +138,7 @@ struct NativeMessage: Codable, Sendable {
 enum MessagePayload: Codable, Sendable {
     case translate(TranslatePayload)
     case saveWord(SaveWordPayload)
+    case speak(SpeakPayload)
     case ping
     case unknown
 
@@ -148,6 +149,8 @@ enum MessagePayload: Codable, Sendable {
             self = .translate(translate)
         } else if let saveWord = try? container.decode(SaveWordPayload.self) {
             self = .saveWord(saveWord)
+        } else if let speak = try? container.decode(SpeakPayload.self) {
+            self = .speak(speak)
         } else if let empty = try? container.decode([String: String].self), empty.isEmpty {
             self = .ping
         } else {
@@ -162,6 +165,8 @@ enum MessagePayload: Codable, Sendable {
             try container.encode(payload)
         case .saveWord(let payload):
             try container.encode(payload)
+        case .speak(let payload):
+            try container.encode(payload)
         case .ping:
             try container.encode([String: String]())
         case .unknown:
@@ -174,6 +179,7 @@ struct TranslatePayload: Codable, Sendable {
     let text: String
     let sourceLanguage: String?
     let targetLanguage: String
+    let context: String?  // 上下文句子，用于语境翻译
 }
 
 struct SaveWordPayload: Codable, Sendable {
@@ -182,8 +188,14 @@ struct SaveWordPayload: Codable, Sendable {
     let translation: String
     let source: String
     let sourceURL: String?
+    let sentence: String?  // 完整句子，用于语境回顾
     let tags: [String]
     let createdAt: Double
+}
+
+struct SpeakPayload: Codable, Sendable {
+    let text: String
+    let language: String?  // 默认 en-US
 }
 
 // MARK: - Response Types

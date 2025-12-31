@@ -20,15 +20,18 @@ export function createTranslator(
   const { targetLanguage = 'zh-Hans', sourceLanguage } = options;
 
   return {
-    async translate(text: string): Promise<string> {
+    async translate(text: string, context?: string): Promise<string> {
       const trimmedText = text.trim();
 
       if (!trimmedText) {
         throw createError(ErrorCode.TRANSLATION_EMPTY, 'Text is empty');
       }
 
+      // Cache key includes context for context-aware translations
+      const cacheKey = context ? `${trimmedText}::${context}` : trimmedText;
+
       // Check cache first
-      const cached = cache.get(trimmedText);
+      const cached = cache.get(cacheKey);
       if (cached) {
         return cached;
       }
@@ -41,6 +44,10 @@ export function createTranslator(
 
       if (sourceLanguage) {
         payload.sourceLanguage = sourceLanguage;
+      }
+
+      if (context) {
+        payload.context = context;
       }
 
       // Send to native host
@@ -61,7 +68,7 @@ export function createTranslator(
       }
 
       // Cache the result
-      cache.set(trimmedText, response.translation);
+      cache.set(cacheKey, response.translation);
 
       return response.translation;
     },

@@ -3,29 +3,48 @@ import { createMessengerWithFallback } from './native-messenger';
 import { createTranslator } from './translator';
 import { createWordBookService, createWordEntry } from './wordbook';
 import { createToast } from './toast';
-import { createFloatingButton, setPageTranslated } from './floating-button';
 import { TranslatorError, ErrorCode, getUserMessage } from './errors';
-import type { Translator, WordBookService, ToastNotification } from './types';
+import type { Translator, WordBookService, ToastNotification, NativeMessenger } from './types';
 
 // === Constants ===
 
-const TRANSLATION_CONTAINER_CLASS = 'translator-bilingual-container';
 const WORD_POPUP_ID = 'translator-word-popup';
+
+// Sentence boundary patterns
+const SENTENCE_END_PATTERN = /[.!?。！？；;]/;
 
 // === Global State ===
 
 let translator: Translator;
 let wordBook: WordBookService;
 let toast: ToastNotification;
+let messenger: NativeMessenger;
 let isInitialized = false;
-let isPageTranslated = false;
+
+// === Text-to-Speech (通过 Native Messaging 调用 macOS) ===
+
+/**
+ * 朗读文本（通过 macOS 系统发音）
+ * @param text 要朗读的文本
+ */
+function speakText(text: string): void {
+  if (!messenger) return;
+
+  // 发送到 macOS 进行朗读（不等待响应）
+  messenger.send({
+    action: 'speak',
+    payload: { text, language: 'en-US' },
+  }).catch(() => {
+    // 静默失败
+  });
+}
 
 // === Initialization ===
 
 async function initialize(): Promise<void> {
   if (isInitialized) return;
 
-  const messenger = await createMessengerWithFallback();
+  messenger = await createMessengerWithFallback();
   const cache = createTranslationCache();
 
   translator = createTranslator(messenger, cache);
@@ -35,134 +54,92 @@ async function initialize(): Promise<void> {
   isInitialized = true;
 
   // Set up event listeners
-  setupDoubleClickHandler();
-  injectStyles();
-
-  // Create floating button
-  const isYouTube = window.location.hostname.includes('youtube.com');
-  await createFloatingButton({
-    isYouTube,
-    onAction: handleFloatingButtonAction,
-  });
+  setupSelectionHandler();
 }
 
-// === Floating Button Handler ===
+// === Sentence Extraction ===
 
-async function handleFloatingButtonAction(
-  action: 'translate-page' | 'restore-page' | 'toggle-youtube'
-): Promise<void> {
-  switch (action) {
-    case 'translate-page':
-      toast.info('正在翻译页面...');
-      try {
-        await translatePage();
-        isPageTranslated = true;
-        setPageTranslated(true);
-        toast.success('页面翻译完成');
-      } catch (error) {
-        toast.error('翻译失败');
+/**
+ * Extract the sentence containing the selection from the text content
+ */
+function extractSentence(container: Node, range: Range): string {
+  // Get the text content of the container
+  const textNode = container.nodeType === Node.TEXT_NODE ? container : container;
+  const fullText = textNode.textContent || '';
+
+  if (!fullText) return '';
+
+  // Get the position of selection within the text
+  const selectedText = range.toString();
+
+  // Find the text node and offset
+  let startOffset = 0;
+  if (container.nodeType === Node.TEXT_NODE) {
+    startOffset = range.startOffset;
+  } else {
+    // For element nodes, we need to find the actual text position
+    const treeWalker = document.createTreeWalker(
+      container,
+      NodeFilter.SHOW_TEXT,
+      null
+    );
+    let currentOffset = 0;
+    let node: Node | null = treeWalker.nextNode();
+    while (node) {
+      if (node === range.startContainer) {
+        startOffset = currentOffset + range.startOffset;
+        break;
       }
-      break;
-
-    case 'restore-page':
-      removeAllTranslations();
-      isPageTranslated = false;
-      setPageTranslated(false);
-      toast.info('已恢复原文');
-      break;
-
-    case 'toggle-youtube':
-      // Send message to YouTube content script
-      chrome.runtime.sendMessage({ type: 'TOGGLE_YOUTUBE_SUBTITLE' }, (response) => {
-        if (response?.enabled) {
-          toast.success('双语字幕已开启');
-        } else {
-          toast.info('双语字幕已关闭');
-        }
-      });
-      break;
+      currentOffset += (node.textContent || '').length;
+      node = treeWalker.nextNode();
+    }
   }
-}
 
-// === Styles Injection ===
-
-function injectStyles(): void {
-  // No global styles needed - all styling is done inline via Shadow DOM
-}
-
-// === Bilingual Display ===
-
-function escapeHtml(text: string): string {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-function injectTranslation(element: HTMLElement, translation: string): void {
-  // Remove existing translation if any
-  removeTranslation(element);
-
-  // Get background from the element
-  const { bg, textColor, isDark } = getElementBackground(element);
-  const borderColor = isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(74, 144, 217, 0.5)';
-
-  // Create container
-  const container = document.createElement('div');
-  container.className = TRANSLATION_CONTAINER_CLASS;
-  container.setAttribute('data-source-id', element.dataset.translatorId || '');
-
-  // Use Shadow DOM for isolation
-  const shadowRoot = container.attachShadow({ mode: 'closed' });
-  shadowRoot.innerHTML = `
-    <style>
-      :host {
-        all: initial;
-        display: block;
-        margin-top: 6px;
-        padding: 8px 12px;
-        background: ${bg};
-        border-left: 3px solid ${borderColor};
-        border-radius: 4px;
+  // Find sentence boundaries
+  // Look backwards for sentence start
+  let sentenceStart = 0;
+  for (let i = startOffset - 1; i >= 0; i--) {
+    if (SENTENCE_END_PATTERN.test(fullText[i])) {
+      sentenceStart = i + 1;
+      // Skip whitespace after punctuation
+      while (sentenceStart < fullText.length && /\s/.test(fullText[sentenceStart])) {
+        sentenceStart++;
       }
-      .translation {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-        font-size: 0.95em;
-        line-height: 1.6;
-        color: ${textColor};
-        opacity: 0.85;
-        white-space: pre-wrap;
-        word-break: break-word;
-      }
-    </style>
-    <div class="translation">${escapeHtml(translation)}</div>
-  `;
-
-  // Insert after the original element
-  element.insertAdjacentElement('afterend', container);
-
-  // Mark element as translated
-  element.dataset.translated = 'true';
-}
-
-function removeTranslation(element: HTMLElement): void {
-  const next = element.nextElementSibling;
-  if (next?.classList.contains(TRANSLATION_CONTAINER_CLASS)) {
-    next.remove();
+      break;
+    }
   }
-  delete element.dataset.translated;
+
+  // Look forwards for sentence end
+  let sentenceEnd = fullText.length;
+  for (let i = startOffset + selectedText.length; i < fullText.length; i++) {
+    if (SENTENCE_END_PATTERN.test(fullText[i])) {
+      sentenceEnd = i + 1;
+      break;
+    }
+  }
+
+  return fullText.slice(sentenceStart, sentenceEnd).trim();
 }
 
-// Remove all translations from the page
-function removeAllTranslations(): void {
-  // Remove all translation containers
-  const containers = document.querySelectorAll(`.${TRANSLATION_CONTAINER_CLASS}`);
-  containers.forEach((container) => container.remove());
+/**
+ * Get the parent element that contains meaningful text
+ */
+function getTextContainer(node: Node): Element | null {
+  let current: Node | null = node;
 
-  // Clear translated markers from all elements
-  const translatedElements = document.querySelectorAll('[data-translated="true"]');
-  translatedElements.forEach((element) => {
-    delete (element as HTMLElement).dataset.translated;
-  });
+  while (current) {
+    if (current.nodeType === Node.ELEMENT_NODE) {
+      const element = current as Element;
+      // Check if this is a block-level text container
+      const tagName = element.tagName.toLowerCase();
+      if (['p', 'div', 'span', 'li', 'td', 'th', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'article', 'section'].includes(tagName)) {
+        return element;
+      }
+    }
+    current = current.parentNode;
+  }
+
+  return null;
 }
 
 // === Word Popup ===
@@ -172,9 +149,7 @@ function getElementBackground(element: Element): { bg: string; textColor: string
   while (el) {
     const style = window.getComputedStyle(el);
     const bg = style.backgroundColor;
-    // Check if background is not transparent
     if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
-      // Parse RGB to determine if dark
       const match = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
       if (match) {
         const [, r, g, b] = match.map(Number);
@@ -193,6 +168,12 @@ function getElementBackground(element: Element): { bg: string; textColor: string
   return { bg: '#ffffff', textColor: '#222', isDark: false };
 }
 
+function escapeHtml(text: string): string {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 function showWordPopup(
   x: number,
   y: number,
@@ -203,7 +184,6 @@ function showWordPopup(
 ): void {
   removeWordPopup();
 
-  // Get background from target element
   const { bg, textColor, isDark } = targetElement
     ? getElementBackground(targetElement)
     : { bg: '#ffffff', textColor: '#222', isDark: false };
@@ -212,7 +192,6 @@ function showWordPopup(
   popup.id = WORD_POPUP_ID;
   popup.style.cssText = 'position: fixed; z-index: 2147483647; pointer-events: none;';
 
-  // Adjust position to stay within viewport
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const popupWidth = 260;
@@ -229,7 +208,6 @@ function showWordPopup(
   }
 
   const borderColor = isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)';
-  const subtextColor = isDark ? 'rgba(255, 255, 255, 0.6)' : '#888';
   const closeBtnBg = isDark ? 'rgba(255, 255, 255, 0.15)' : '#f0f0f0';
   const closeBtnHover = isDark ? 'rgba(255, 255, 255, 0.25)' : '#e0e0e0';
   const closeBtnColor = isDark ? 'rgba(255, 255, 255, 0.8)' : '#555';
@@ -266,11 +244,11 @@ function showWordPopup(
         from { opacity: 0; transform: translateY(-4px); }
         to { opacity: 1; transform: translateY(0); }
       }
-      .original {
-        font-size: 12px;
-        color: ${subtextColor};
+      .word {
+        font-size: 14px;
+        font-weight: 600;
+        color: ${textColor};
         margin-bottom: 4px;
-        word-break: break-word;
       }
       .translation {
         font-size: 15px;
@@ -307,9 +285,34 @@ function showWordPopup(
       .close-btn:hover {
         background: ${closeBtnHover};
       }
+      .speak-btn {
+        background: transparent;
+        color: ${textColor};
+        padding: 4px 8px;
+        min-width: auto;
+        opacity: 0.7;
+      }
+      .speak-btn:hover {
+        opacity: 1;
+        background: ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'};
+      }
+      .word-row {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin-bottom: 4px;
+      }
+      .word-text {
+        font-size: 14px;
+        font-weight: 600;
+        color: ${textColor};
+      }
     </style>
     <div class="popup">
-      <div class="original">${escapeHtml(originalText)}</div>
+      <div class="word-row">
+        <span class="word-text">${escapeHtml(originalText)}</span>
+        <button class="speak-btn" title="朗读">🔊</button>
+      </div>
       <div class="translation">${escapeHtml(translation)}</div>
       <div class="actions">
         <button class="save-btn">收藏</button>
@@ -320,9 +323,9 @@ function showWordPopup(
 
   document.body.appendChild(popup);
 
-  // Event handlers
   const saveBtn = shadow.querySelector('.save-btn');
   const closeBtn = shadow.querySelector('.close-btn');
+  const speakBtn = shadow.querySelector('.speak-btn');
 
   saveBtn?.addEventListener('click', () => {
     onSave();
@@ -331,10 +334,12 @@ function showWordPopup(
 
   closeBtn?.addEventListener('click', removeWordPopup);
 
-  // Get the actual popup element inside shadow for bounds checking
+  speakBtn?.addEventListener('click', () => {
+    speakText(originalText);
+  });
+
   const popupInner = shadow.querySelector('.popup') as HTMLElement;
 
-  // Close on click outside (with delay to prevent immediate close)
   setTimeout(() => {
     document.addEventListener('click', handleOutsideClick);
   }, 100);
@@ -346,7 +351,6 @@ function showWordPopup(
       return;
     }
 
-    // Check if click is inside the popup bounds
     const rect = popupInner.getBoundingClientRect();
     const isInside =
       e.clientX >= rect.left &&
@@ -360,7 +364,6 @@ function showWordPopup(
     }
   }
 
-  // Close on Escape key
   function handleEscape(e: KeyboardEvent): void {
     if (e.key === 'Escape') {
       removeWordPopup();
@@ -374,33 +377,49 @@ function removeWordPopup(): void {
   document.getElementById(WORD_POPUP_ID)?.remove();
 }
 
-// === Double-click Word Selection Handler ===
+// === Selection Handler ===
 
-function setupDoubleClickHandler(): void {
-  document.addEventListener('dblclick', handleDoubleClick);
+function setupSelectionHandler(): void {
+  document.addEventListener('mouseup', handleMouseUp);
 }
 
-async function handleDoubleClick(event: MouseEvent): Promise<void> {
+async function handleMouseUp(event: MouseEvent): Promise<void> {
+  // Small delay to ensure selection is complete
+  await new Promise(resolve => setTimeout(resolve, 10));
+
   const selection = window.getSelection();
-  const selectedText = selection?.toString().trim();
+  if (!selection || selection.isCollapsed) return;
+
+  const selectedText = selection.toString().trim();
 
   if (!selectedText || selectedText.length === 0) return;
 
-  // Limit to reasonable word/phrase length (max 100 chars, max 10 words)
+  // Limit to reasonable word/phrase length
   if (selectedText.length > 100) return;
   if (selectedText.split(/\s+/).length > 10) return;
 
   // Don't handle if clicking on our own elements
   const target = event.target as HTMLElement;
-  if (
-    target.closest(`#${WORD_POPUP_ID}`) ||
-    target.closest(`.${TRANSLATION_CONTAINER_CLASS}`)
-  ) {
+  if (target.closest(`#${WORD_POPUP_ID}`)) {
     return;
   }
 
+  // Get the range and extract sentence
+  const range = selection.getRangeAt(0);
+  const container = range.startContainer;
+
+  // Find the text container element
+  const textContainer = getTextContainer(container);
+
+  // Extract the full sentence
+  let sentence = '';
+  if (textContainer) {
+    sentence = extractSentence(textContainer, range);
+  }
+
   try {
-    const translation = await translator.translate(selectedText);
+    // 传入句子作为上下文，实现语境翻译
+    const translation = await translator.translate(selectedText, sentence);
 
     showWordPopup(
       event.clientX,
@@ -408,12 +427,13 @@ async function handleDoubleClick(event: MouseEvent): Promise<void> {
       selectedText,
       translation,
       async () => {
-        // Save to word book when user clicks save
         try {
+          // 收藏时保存句子和网页链接
           const word = createWordEntry(
             selectedText,
             translation,
-            window.location.href
+            window.location.href,
+            sentence
           );
           await wordBook.save(word);
           toast.success('已收藏到单词本');
@@ -439,205 +459,6 @@ async function handleDoubleClick(event: MouseEvent): Promise<void> {
   }
 }
 
-// === Paragraph Translation (for future use) ===
-
-const TRANSLATABLE_SELECTORS = [
-  // Generic text elements
-  'p',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'h5',
-  'h6',
-  'li',
-  'blockquote',
-  'figcaption',
-  'caption',
-  'td',
-  'th',
-  'dt',
-  'dd',
-  'label',
-  'legend',
-  // Semantic elements
-  'article p',
-  'article h1',
-  'article h2',
-  'article h3',
-  'article li',
-  'section p',
-  'section h1',
-  'section h2',
-  'section h3',
-  '.markdown-body p',
-  '.markdown-body h1',
-  '.markdown-body h2',
-  '.markdown-body h3',
-  '.markdown-body li',
-  'main p',
-  'main h1',
-  'main h2',
-  'main h3',
-  '[role="main"] p',
-  // Common class patterns
-  '.content p',
-  '.post p',
-  '.entry p',
-  '.text p',
-  '.body p',
-  '.description',
-  '.summary',
-  '.excerpt',
-  '.intro',
-  // Span/div with substantial text (handled separately)
-];
-
-const EXCLUDED_SELECTORS = [
-  'script',
-  'style',
-  'noscript',
-  'code',
-  'pre',
-  'input',
-  'textarea',
-  'select',
-  'button',
-  'nav',
-  'aside',
-  '[contenteditable="true"]',
-  '[data-translated="true"]',
-  '[role="navigation"]',
-  '[role="tooltip"]',
-  '[role="menu"]',
-  '[role="menuitem"]',
-  '[aria-hidden="true"]',
-  '.sr-only',
-  '.visually-hidden',
-  '.icon',
-  '.btn',
-  '.button',
-  // Translation container
-  `.${TRANSLATION_CONTAINER_CLASS}`,
-];
-
-function shouldTranslateParagraph(element: HTMLElement): boolean {
-  // Check if element matches excluded selectors
-  for (const selector of EXCLUDED_SELECTORS) {
-    if (element.matches(selector) || element.closest(selector)) {
-      return false;
-    }
-  }
-
-  // Check if element is visible
-  const style = window.getComputedStyle(element);
-  if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
-    return false;
-  }
-
-  // Check minimum text length (lowered to 10 to catch more content)
-  const text = element.textContent?.trim() || '';
-  if (text.length < 10) return false;
-
-  // Check if already translated
-  if (element.dataset.translated === 'true') return false;
-
-  // Check if text is mostly non-Chinese (needs translation to Chinese)
-  const chineseChars = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-  const chineseRatio = chineseChars / text.length;
-  return chineseRatio < 0.3;
-}
-
-function getTranslatableParagraphs(): HTMLElement[] {
-  const elementSet = new Set<HTMLElement>();
-
-  // First pass: collect elements matching selectors
-  for (const selector of TRANSLATABLE_SELECTORS) {
-    document.querySelectorAll(selector).forEach((el) => {
-      const htmlEl = el as HTMLElement;
-      if (shouldTranslateParagraph(htmlEl)) {
-        elementSet.add(htmlEl);
-      }
-    });
-  }
-
-  // Second pass: remove nested elements (keep only outermost)
-  // If an element is a descendant of another selected element, remove it
-  const filteredElements: HTMLElement[] = [];
-  for (const el of elementSet) {
-    let isNested = false;
-    let parent = el.parentElement;
-    while (parent) {
-      if (elementSet.has(parent)) {
-        isNested = true;
-        break;
-      }
-      parent = parent.parentElement;
-    }
-    if (!isNested) {
-      filteredElements.push(el);
-    }
-  }
-
-  return filteredElements;
-}
-
-// Translate all paragraphs on page (can be triggered by user action)
-async function translatePage(): Promise<void> {
-  const paragraphs = getTranslatableParagraphs();
-
-  for (const paragraph of paragraphs) {
-    const text = paragraph.textContent?.trim();
-    if (!text) continue;
-
-    try {
-      const translation = await translator.translate(text);
-      injectTranslation(paragraph, translation);
-    } catch {
-      // Skip failed translations silently for batch operation
-    }
-  }
-}
-
-// === Message Handler (for background script communication) ===
-
-interface ContentScriptMessage {
-  type: 'TRANSLATE_PAGE' | 'TRANSLATE_SELECTION' | 'RESTORE_PAGE';
-}
-
-chrome.runtime.onMessage.addListener((message: ContentScriptMessage, _sender, sendResponse) => {
-  if (message.type === 'TRANSLATE_PAGE') {
-    translatePage()
-      .then(() => sendResponse({ success: true }))
-      .catch((error: Error) => sendResponse({ success: false, error: error.message }));
-    return true; // Keep channel open for async response
-  }
-
-  if (message.type === 'TRANSLATE_SELECTION') {
-    const selection = window.getSelection();
-    const selectedText = selection?.toString().trim();
-    if (selectedText) {
-      translator
-        .translate(selectedText)
-        .then((translation) => sendResponse({ success: true, translation }))
-        .catch((error: Error) => sendResponse({ success: false, error: error.message }));
-    } else {
-      sendResponse({ success: false, error: 'No text selected' });
-    }
-    return true;
-  }
-
-  if (message.type === 'RESTORE_PAGE') {
-    removeAllTranslations();
-    isPageTranslated = false;
-    setPageTranslated(false);
-    sendResponse({ success: true });
-    return true;
-  }
-
-  return false;
-});
-
 // === Entry Point ===
 
 initialize().catch(() => {
@@ -646,9 +467,6 @@ initialize().catch(() => {
 
 // Export for testing
 export {
-  injectTranslation,
-  removeTranslation,
-  removeAllTranslations,
-  shouldTranslateParagraph,
-  getTranslatableParagraphs,
+  extractSentence,
+  getTextContainer,
 };
