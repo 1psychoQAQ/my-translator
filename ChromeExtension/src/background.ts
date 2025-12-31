@@ -1,15 +1,14 @@
 import { createTranslationCache } from './cache';
+import { createBackendManager, type BackendManager, type StoredWord, type ExtensionConfig } from './backends';
 import { createNativeMessenger } from './native-messenger';
-import { createTranslator } from './translator';
-import { createWordBookService, createWordEntry } from './wordbook';
-import type { Translator, WordBookService, WordEntry, NativeMessenger, NativeMessage } from './types';
+import type { NativeMessenger, NativeMessage } from './types';
 import { TranslatorError, getUserMessage } from './errors';
 
 // === Global State ===
 
-let translator: Translator;
-let wordBook: WordBookService;
+let backendManager: BackendManager;
 let nativeMessenger: NativeMessenger;
+const translationCache = createTranslationCache();
 let isInitialized = false;
 
 // === Initialization ===
@@ -17,12 +16,16 @@ let isInitialized = false;
 async function initialize(): Promise<void> {
   if (isInitialized) return;
 
-  // Create native messenger (background script can use sendNativeMessage directly)
-  nativeMessenger = createNativeMessenger();
-  const cache = createTranslationCache();
+  // Create backend manager for cross-platform support
+  backendManager = createBackendManager();
+  await backendManager.initialize();
 
-  translator = createTranslator(nativeMessenger, cache);
-  wordBook = createWordBookService(nativeMessenger);
+  // Native messenger for direct native messaging (legacy support)
+  nativeMessenger = createNativeMessenger();
+
+  console.log(
+    `[Translator] Initialized with ${backendManager.resolvedMode} backend`
+  );
 
   isInitialized = true;
 }
@@ -37,11 +40,12 @@ initialize().catch((error) => {
 interface TranslateMessage {
   type: 'TRANSLATE';
   text: string;
+  context?: string;
 }
 
 interface SaveWordMessage {
   type: 'SAVE_WORD';
-  word: WordEntry;
+  word: StoredWord;
 }
 
 interface CreateAndSaveWordMessage {
@@ -49,6 +53,13 @@ interface CreateAndSaveWordMessage {
   text: string;
   translation: string;
   sourceURL?: string;
+  sentence?: string;
+}
+
+interface SpeakMessage {
+  type: 'SPEAK';
+  text: string;
+  language?: string;
 }
 
 interface NativeProxyMessage {
@@ -56,11 +67,45 @@ interface NativeProxyMessage {
   payload: NativeMessage;
 }
 
+interface GetConfigMessage {
+  type: 'GET_CONFIG';
+}
+
+interface SetConfigMessage {
+  type: 'SET_CONFIG';
+  config: Partial<ExtensionConfig>;
+}
+
+interface GetBackendInfoMessage {
+  type: 'GET_BACKEND_INFO';
+}
+
+interface GetWordsMessage {
+  type: 'GET_WORDS';
+}
+
+interface ExportWordsMessage {
+  type: 'EXPORT_WORDS';
+}
+
+interface ImportWordsMessage {
+  type: 'IMPORT_WORDS';
+  json: string;
+  merge?: boolean;
+}
+
 type BackgroundMessage =
   | TranslateMessage
   | SaveWordMessage
   | CreateAndSaveWordMessage
-  | NativeProxyMessage;
+  | SpeakMessage
+  | NativeProxyMessage
+  | GetConfigMessage
+  | SetConfigMessage
+  | GetBackendInfoMessage
+  | GetWordsMessage
+  | ExportWordsMessage
+  | ImportWordsMessage;
 
 chrome.runtime.onMessage.addListener(
   (
@@ -90,30 +135,58 @@ async function handleMessage(
   try {
     switch (message.type) {
       case 'TRANSLATE': {
-        const translation = await translator.translate(message.text);
+        // Check cache first
+        const cacheKey = message.context
+          ? `${message.text}::${message.context}`
+          : message.text;
+        const cached = translationCache.get(cacheKey);
+        if (cached) {
+          sendResponse({ success: true, translation: cached });
+          return;
+        }
+
+        const translation = await backendManager.translate(
+          message.text,
+          message.context
+        );
+
+        // Cache the result
+        translationCache.set(cacheKey, translation);
+
         sendResponse({ success: true, translation });
         break;
       }
 
       case 'SAVE_WORD': {
-        await wordBook.save(message.word);
+        await backendManager.saveWord(message.word);
         sendResponse({ success: true });
         break;
       }
 
       case 'CREATE_AND_SAVE_WORD': {
-        const word = createWordEntry(
-          message.text,
-          message.translation,
-          message.sourceURL
-        );
-        await wordBook.save(word);
+        const word: StoredWord = {
+          id: crypto.randomUUID(),
+          text: message.text.trim(),
+          translation: message.translation,
+          source: 'webpage',
+          sourceURL: message.sourceURL,
+          sentence: message.sentence,
+          tags: [],
+          createdAt: Date.now(),
+        };
+        await backendManager.saveWord(word);
         sendResponse({ success: true, word });
         break;
       }
 
+      case 'SPEAK': {
+        await backendManager.speak(message.text, message.language);
+        sendResponse({ success: true });
+        break;
+      }
+
       case 'NATIVE_MESSAGE': {
-        // Proxy native messaging requests from content scripts
+        // Proxy native messaging requests (for backward compatibility)
         try {
           const response = await nativeMessenger.send(message.payload);
           sendResponse({ success: true, data: response });
@@ -126,6 +199,71 @@ async function handleMessage(
             sendResponse({ success: false, error: 'Native message failed' });
           }
         }
+        break;
+      }
+
+      case 'GET_CONFIG': {
+        const config = await backendManager.getConfig();
+        sendResponse({ success: true, config });
+        break;
+      }
+
+      case 'SET_CONFIG': {
+        await backendManager.setConfig(message.config);
+        // Clear cache when config changes
+        translationCache.clear();
+        sendResponse({ success: true });
+        break;
+      }
+
+      case 'GET_BACKEND_INFO': {
+        const nativeAvailable = await backendManager.isNativeAvailable();
+        sendResponse({
+          success: true,
+          info: {
+            mode: backendManager.mode,
+            resolvedMode: backendManager.resolvedMode,
+            backendId: backendManager.backend.id,
+            backendName: backendManager.backend.name,
+            nativeAvailable,
+          },
+        });
+        break;
+      }
+
+      case 'GET_WORDS': {
+        const words = await backendManager.storage.getAll();
+        sendResponse({ success: true, words });
+        break;
+      }
+
+      case 'EXPORT_WORDS': {
+        const words = await backendManager.storage.getAll();
+        const json = JSON.stringify(words, null, 2);
+        sendResponse({ success: true, json });
+        break;
+      }
+
+      case 'IMPORT_WORDS': {
+        const importedWords = JSON.parse(message.json) as StoredWord[];
+        let imported = 0;
+        let skipped = 0;
+
+        for (const word of importedWords) {
+          try {
+            const exists = await backendManager.storage.exists(word.text);
+            if (exists && message.merge !== false) {
+              skipped++;
+              continue;
+            }
+            await backendManager.storage.save(word);
+            imported++;
+          } catch {
+            skipped++;
+          }
+        }
+
+        sendResponse({ success: true, imported, skipped });
         break;
       }
 

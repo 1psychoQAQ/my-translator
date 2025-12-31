@@ -1,6 +1,6 @@
 # Translator
 
-A personal translation toolkit for macOS and Chrome. Zero-cost, privacy-first, powered by Apple's on-device translation.
+A personal translation toolkit for macOS and Chrome. Zero-cost, privacy-first, with cross-platform support.
 
 ## Features
 
@@ -36,6 +36,29 @@ A personal translation toolkit for macOS and Chrome. Zero-cost, privacy-first, p
 │   - Word Book UI                                       │
 └─────────────────────────────────────────────────────────┘
 ```
+
+## Cross-Platform Support
+
+The Chrome extension works in two modes:
+
+| Mode | Translation Backend | Word Storage | TTS | Requirements |
+|------|---------------------|--------------|-----|--------------|
+| **Native** (macOS) | Apple Translation (offline) | SwiftData + Browser | macOS TTS | macOS 15.0+ with TranslatorApp |
+| **Web** (Any OS) | MyMemory / Lingva API | Browser Storage | Web Speech API | Just Chrome |
+
+### Auto-Detection
+
+The extension automatically detects the best available backend:
+1. If macOS app is installed → Uses native Apple Translation (offline, higher quality)
+2. Otherwise → Uses free web translation APIs (MyMemory with Lingva fallback)
+
+### Standalone Chrome Mode
+
+The Chrome extension works **completely standalone** on any platform:
+- Windows, Linux, macOS (without the native app)
+- Translations via free web APIs (no API key required)
+- Word book stored in `chrome.storage.local`
+- TTS using browser's built-in speech synthesis
 
 ## Requirements
 
@@ -163,9 +186,16 @@ swift build
 
 ## Privacy
 
+### Native Mode (macOS)
 - **No data leaves your device** - Translation uses Apple's on-device model
 - **No tracking** - No analytics or telemetry
 - **Local storage only** - Word book stored in local SwiftData database
+
+### Web Mode (Cross-platform)
+- **Minimal data exposure** - Only the selected text is sent for translation
+- **No tracking** - No analytics or telemetry
+- **Local storage only** - Word book stored in browser's local storage
+- Translation APIs used: [MyMemory](https://mymemory.translated.net/), [Lingva](https://github.com/thedaviddelta/lingva-translate)
 
 ## License
 
