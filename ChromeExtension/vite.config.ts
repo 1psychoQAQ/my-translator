@@ -2,6 +2,20 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 import { copyFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
 
+// Recursively copy directory
+function copyDirSync(src: string, dest: string) {
+  mkdirSync(dest, { recursive: true });
+  for (const entry of readdirSync(src, { withFileTypes: true })) {
+    const srcPath = resolve(src, entry.name);
+    const destPath = resolve(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirSync(srcPath, destPath);
+    } else {
+      copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
 // Plugin to copy static files after build
 function copyStaticFiles() {
   return {
@@ -19,13 +33,14 @@ function copyStaticFiles() {
       const iconsDir = resolve(__dirname, 'icons');
       const distIconsDir = resolve(distDir, 'icons');
       if (existsSync(iconsDir)) {
-        mkdirSync(distIconsDir, { recursive: true });
-        for (const file of readdirSync(iconsDir)) {
-          copyFileSync(
-            resolve(iconsDir, file),
-            resolve(distIconsDir, file)
-          );
-        }
+        copyDirSync(iconsDir, distIconsDir);
+      }
+
+      // Copy _locales for i18n
+      const localesDir = resolve(__dirname, '_locales');
+      const distLocalesDir = resolve(distDir, '_locales');
+      if (existsSync(localesDir)) {
+        copyDirSync(localesDir, distLocalesDir);
       }
     },
   };

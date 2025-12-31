@@ -1,0 +1,38 @@
+{
+  "extName": {
+    "message": "Translator",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Immersive web translation with word collection. Powered by on-device translation.",
+    "description": "Extension description"
+  },
+  "save": {
+    "message": "Save",
+    "description": "Save button"
+  },
+  "close": {
+    "message": "Close",
+    "description": "Close button"
+  },
+  "saved": {
+    "message": "Saved to word book",
+    "description": "Toast message when word is saved"
+  },
+  "wordExists": {
+    "message": "Word already exists",
+    "description": "Toast message when word already exists"
+  },
+  "saveFailed": {
+    "message": "Save failed",
+    "description": "Toast message when save fails"
+  },
+  "translateFailed": {
+    "message": "Translation failed",
+    "description": "Toast message when translation fails"
+  },
+  "nativeHostRequired": {
+    "message": "macOS companion app required for translation",
+    "description": "Message when native host is not available"
+  }
+}
