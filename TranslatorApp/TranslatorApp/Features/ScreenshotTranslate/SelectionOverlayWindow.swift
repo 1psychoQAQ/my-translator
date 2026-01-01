@@ -600,13 +600,32 @@ private struct OverlayResultView: View {
     let onSave: () -> Void
     let onCancel: () -> Void
 
+    @State private var showCopiedOriginal = false
+    @State private var showCopiedTranslation = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // 原文
             VStack(alignment: .leading, spacing: 2) {
-                Text("原文")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.white.opacity(0.6))
+                HStack {
+                    Text("原文")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                    Spacer()
+                    // 复制原文按钮
+                    Button(action: copyOriginal) {
+                        HStack(spacing: 2) {
+                            Image(systemName: showCopiedOriginal ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 10))
+                            if showCopiedOriginal {
+                                Text("已复制")
+                                    .font(.system(size: 10))
+                            }
+                        }
+                        .foregroundColor(showCopiedOriginal ? .green : .white.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                }
                 ScrollView {
                     Text(original)
                         .font(.system(size: 12))
@@ -622,9 +641,25 @@ private struct OverlayResultView: View {
 
             // 译文
             VStack(alignment: .leading, spacing: 2) {
-                Text("译文")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.white.opacity(0.6))
+                HStack {
+                    Text("译文")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+                    Spacer()
+                    // 复制译文按钮
+                    Button(action: copyTranslation) {
+                        HStack(spacing: 2) {
+                            Image(systemName: showCopiedTranslation ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 10))
+                            if showCopiedTranslation {
+                                Text("已复制")
+                                    .font(.system(size: 10))
+                            }
+                        }
+                        .foregroundColor(showCopiedTranslation ? .green : .white.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                }
                 ScrollView {
                     Text(translated)
                         .font(.system(size: 12))
@@ -676,6 +711,24 @@ private struct OverlayResultView: View {
         }
         .padding(10)
         .background(FloatingBarBackground())
+    }
+
+    private func copyOriginal() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(original, forType: .string)
+        showCopiedOriginal = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            showCopiedOriginal = false
+        }
+    }
+
+    private func copyTranslation() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(translated, forType: .string)
+        showCopiedTranslation = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            showCopiedTranslation = false
+        }
     }
 }
 

@@ -182,34 +182,24 @@ function getTextContainer(node: Node): Element | null {
 
 // === Word Popup ===
 
-function getElementBackground(element: Element): { bg: string; textColor: string; isDark: boolean } {
-  let el: Element | null = element;
-  while (el) {
-    const style = window.getComputedStyle(el);
-    const bg = style.backgroundColor;
-    if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') {
-      const match = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-      if (match) {
-        const [, r, g, b] = match.map(Number);
-        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-        const isDark = luminance < 0.5;
-        return {
-          bg,
-          textColor: isDark ? '#fff' : '#222',
-          isDark
-        };
-      }
-      return { bg, textColor: '#222', isDark: false };
-    }
-    el = el.parentElement;
-  }
-  return { bg: '#ffffff', textColor: '#222', isDark: false };
-}
-
 function escapeHtml(text: string): string {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function copyToClipboard(text: string): void {
+  navigator.clipboard.writeText(text).catch(() => {
+    // Fallback for older browsers
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+  });
 }
 
 function showWordPopup(
@@ -218,13 +208,9 @@ function showWordPopup(
   originalText: string,
   translation: string,
   onSave: () => void,
-  targetElement?: Element
+  _targetElement?: Element
 ): void {
   removeWordPopup();
-
-  const { bg, textColor, isDark } = targetElement
-    ? getElementBackground(targetElement)
-    : { bg: '#ffffff', textColor: '#222', isDark: false };
 
   const popup = document.createElement('div');
   popup.id = WORD_POPUP_ID;
@@ -232,8 +218,8 @@ function showWordPopup(
 
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
-  const popupWidth = 260;
-  const popupHeight = 100;
+  const popupWidth = 280;
+  const popupHeight = 140;
 
   let posX = x + 10;
   let posY = y + 10;
@@ -244,11 +230,6 @@ function showWordPopup(
   if (posY + popupHeight > viewportHeight) {
     posY = y - popupHeight - 10;
   }
-
-  const borderColor = isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)';
-  const closeBtnBg = isDark ? 'rgba(255, 255, 255, 0.15)' : '#f0f0f0';
-  const closeBtnHover = isDark ? 'rgba(255, 255, 255, 0.25)' : '#e0e0e0';
-  const closeBtnColor = isDark ? 'rgba(255, 255, 255, 0.8)' : '#555';
 
   const shadow = popup.attachShadow({ mode: 'closed' });
   shadow.innerHTML = `
@@ -268,46 +249,61 @@ function showWordPopup(
         left: ${posX}px;
         top: ${posY}px;
         z-index: 2147483647;
-        background: ${bg};
-        border: 1px solid ${borderColor};
-        border-radius: 8px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-        padding: 12px 16px;
-        max-width: 260px;
+        background: rgba(40, 40, 40, 0.85);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 10px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        padding: 12px 14px;
+        max-width: 280px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
         pointer-events: auto;
         animation: popupFadeIn 0.15s ease-out;
+        color: white;
       }
       @keyframes popupFadeIn {
         from { opacity: 0; transform: translateY(-4px); }
         to { opacity: 1; transform: translateY(0); }
       }
-      .word {
-        font-size: 14px;
-        font-weight: 600;
-        color: ${textColor};
+      .section {
+        margin-bottom: 8px;
+      }
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
         margin-bottom: 4px;
       }
-      .translation {
-        font-size: 15px;
-        color: ${textColor};
+      .section-label {
+        font-size: 10px;
         font-weight: 500;
-        margin-bottom: 10px;
-        word-break: break-word;
+        color: rgba(255, 255, 255, 0.5);
+      }
+      .section-text {
+        font-size: 13px;
         line-height: 1.4;
+        word-break: break-word;
+        color: white;
+      }
+      .divider {
+        height: 1px;
+        background: rgba(255, 255, 255, 0.15);
+        margin: 8px 0;
       }
       .actions {
         display: flex;
         gap: 8px;
+        margin-top: 10px;
       }
       button {
-        padding: 6px 14px;
+        padding: 6px 12px;
         border: none;
-        border-radius: 5px;
+        border-radius: 6px;
         cursor: pointer;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 500;
-        transition: background 0.15s;
+        transition: all 0.15s;
       }
       .save-btn {
         background: #007aff;
@@ -317,41 +313,54 @@ function showWordPopup(
         background: #0056b3;
       }
       .close-btn {
-        background: ${closeBtnBg};
-        color: ${closeBtnColor};
+        background: rgba(255, 255, 255, 0.15);
+        color: rgba(255, 255, 255, 0.8);
       }
       .close-btn:hover {
-        background: ${closeBtnHover};
+        background: rgba(255, 255, 255, 0.25);
       }
-      .speak-btn {
+      .icon-btn {
         background: transparent;
-        color: ${textColor};
-        padding: 4px 8px;
+        color: rgba(255, 255, 255, 0.5);
+        padding: 2px 6px;
         min-width: auto;
-        opacity: 0.7;
+        font-size: 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
       }
-      .speak-btn:hover {
-        opacity: 1;
-        background: ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'};
+      .icon-btn:hover {
+        color: white;
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .icon-btn.copied {
+        color: #34c759;
       }
       .word-row {
         display: flex;
         align-items: center;
         gap: 4px;
-        margin-bottom: 4px;
-      }
-      .word-text {
-        font-size: 14px;
-        font-weight: 600;
-        color: ${textColor};
       }
     </style>
     <div class="popup">
-      <div class="word-row">
-        <span class="word-text">${escapeHtml(originalText)}</span>
-        <button class="speak-btn" title="朗读">🔊</button>
+      <div class="section">
+        <div class="section-header">
+          <span class="section-label">原文</span>
+          <div class="word-row">
+            <button class="icon-btn copy-original-btn" title="复制原文">📋</button>
+            <button class="icon-btn speak-btn" title="朗读">🔊</button>
+          </div>
+        </div>
+        <div class="section-text original-text">${escapeHtml(originalText)}</div>
       </div>
-      <div class="translation">${escapeHtml(translation)}</div>
+      <div class="divider"></div>
+      <div class="section">
+        <div class="section-header">
+          <span class="section-label">译文</span>
+          <button class="icon-btn copy-translation-btn" title="复制译文">📋</button>
+        </div>
+        <div class="section-text">${escapeHtml(translation)}</div>
+      </div>
       <div class="actions">
         <button class="save-btn">收藏</button>
         <button class="close-btn">关闭</button>
@@ -364,6 +373,8 @@ function showWordPopup(
   const saveBtn = shadow.querySelector('.save-btn');
   const closeBtn = shadow.querySelector('.close-btn');
   const speakBtn = shadow.querySelector('.speak-btn');
+  const copyOriginalBtn = shadow.querySelector('.copy-original-btn');
+  const copyTranslationBtn = shadow.querySelector('.copy-translation-btn');
 
   saveBtn?.addEventListener('click', () => {
     onSave();
@@ -374,6 +385,26 @@ function showWordPopup(
 
   speakBtn?.addEventListener('click', () => {
     speakText(originalText);
+  });
+
+  copyOriginalBtn?.addEventListener('click', () => {
+    copyToClipboard(originalText);
+    copyOriginalBtn.textContent = '✓';
+    copyOriginalBtn.classList.add('copied');
+    setTimeout(() => {
+      copyOriginalBtn.textContent = '📋';
+      copyOriginalBtn.classList.remove('copied');
+    }, 1500);
+  });
+
+  copyTranslationBtn?.addEventListener('click', () => {
+    copyToClipboard(translation);
+    copyTranslationBtn.textContent = '✓';
+    copyTranslationBtn.classList.add('copied');
+    setTimeout(() => {
+      copyTranslationBtn.textContent = '📋';
+      copyTranslationBtn.classList.remove('copied');
+    }, 1500);
   });
 
   const popupInner = shadow.querySelector('.popup') as HTMLElement;
