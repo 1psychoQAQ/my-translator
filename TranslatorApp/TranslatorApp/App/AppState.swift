@@ -2,7 +2,6 @@ import Foundation
 import SwiftUI
 import SwiftData
 import AppKit
-import ScreenCaptureKit
 import Carbon
 
 @MainActor
@@ -69,69 +68,15 @@ final class AppState: ObservableObject {
 
         // Store manager reference (we'll update this pattern)
         (wordBookManager as? PlaceholderWordBookManager)?.realManager = manager
-
-        // Request screen capture permission on startup
-        Task {
-            await requestScreenCapturePermission()
-        }
-    }
-
-    /// Check and request screen capture permission
-    private func requestScreenCapturePermission() async {
-        print("🔒 Checking screen capture permission...")
-
-        // Check if permission is already granted
-        let hasPermission = await checkScreenCapturePermission()
-
-        if hasPermission {
-            print("✅ Screen capture permission granted")
-            // Clear the alert flag since permission is granted
-            UserDefaults.standard.removeObject(forKey: "hasShownScreenCaptureAlert")
-            return
-        }
-
-        print("⚠️ Screen capture permission not granted")
-        print("💡 Please enable in: System Settings → Privacy & Security → Screen Recording")
-
-        // Only show alert once per app launch session if not already shown
-        let hasShownAlert = UserDefaults.standard.bool(forKey: "hasShownScreenCaptureAlert")
-        if hasShownAlert {
-            print("ℹ️ Permission alert already shown, skipping...")
-            return
-        }
-
-        // Mark that we've shown the alert
-        UserDefaults.standard.set(true, forKey: "hasShownScreenCaptureAlert")
-
-        // Show alert to guide user
-        await MainActor.run {
-            let alert = NSAlert()
-            alert.messageText = "需要屏幕录制权限"
-            alert.informativeText = "请在「系统设置  → 隐私与安全性 → 屏幕录制」中允许此应用。\n\n授权后请重启应用。"
-            alert.alertStyle = .warning
-            alert.addButton(withTitle: "打开系统设置")
-            alert.addButton(withTitle: "稍后")
-
-            if alert.runModal() == .alertFirstButtonReturn {
-                // Open System Settings to Screen Recording
-                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-                    NSWorkspace.shared.open(url)
-                }
-            }
-        }
-    }
-
-    /// Check if screen capture permission is granted without triggering request
-    private func checkScreenCapturePermission() async -> Bool {
-        do {
-            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-            return true
-        } catch {
-            return false
-        }
     }
 
     func setupGlobalHotkey() {
+        // 检查辅助功能权限（用于全局快捷键监听）
+        let permissions = PermissionsManager.shared
+        if !permissions.hasAccessibilityPermission {
+            print("⚠️ 缺少辅助功能权限，快捷键可能无法正常工作")
+            // 不阻止继续，让用户可以通过菜单使用
+        }
         let settings = HotkeySettings.shared
         print("🔑 Setting up global hotkey (\(settings.displayString)) with Carbon API...")
 

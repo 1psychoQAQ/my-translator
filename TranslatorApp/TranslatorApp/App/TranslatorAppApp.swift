@@ -95,6 +95,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
+        // 检查权限
+        checkPermissions()
+
         // Configure app state
         Task { @MainActor in
             globalAppState.configure()
@@ -102,6 +105,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         print("✅ TranslatorApp initialized")
+    }
+
+    /// 检查必要权限，如果缺失则提示用户
+    private func checkPermissions() {
+        let permissions = PermissionsManager.shared
+
+        // 检查辅助功能权限（用于全局快捷键）
+        if !permissions.hasAccessibilityPermission {
+            print("⚠️ 缺少辅助功能权限")
+            permissions.openAccessibilitySettings()
+        }
+
+        // 检查屏幕录制权限（用于截图翻译）
+        if !permissions.hasScreenCapturePermission {
+            print("⚠️ 缺少屏幕录制权限")
+            // 屏幕录制权限会在首次使用时自动请求，这里不主动打开设置
+        }
     }
 
     @objc func updateMenuHotkeyDisplay() {

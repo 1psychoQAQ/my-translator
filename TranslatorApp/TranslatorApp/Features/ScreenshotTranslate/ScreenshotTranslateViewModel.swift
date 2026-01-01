@@ -28,6 +28,13 @@ final class ScreenshotTranslateViewModel: ObservableObject {
     }
 
     func startScreenshotTranslation() async {
+        // 检查屏幕录制权限
+        let permissions = PermissionsManager.shared
+        if !permissions.hasScreenCapturePermission {
+            permissions.requestScreenCapturePermission()
+            return
+        }
+
         guard let screenshotService = screenshotService else {
             showErrorAlert("应用尚未完成初始化，请稍后重试")
             return
