@@ -40,7 +40,9 @@ protocol ScreenshotServiceProtocol {
 
 protocol WordBookManagerProtocol {
     func save(_ word: Word) throws
+    func saveAll(_ words: [Word], skipDuplicates: Bool) throws -> Int
     func delete(_ word: Word) throws
+    func deleteAll() throws
     func fetchAll() throws -> [Word]
     func search(_ keyword: String) throws -> [Word]
 }

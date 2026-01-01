@@ -14,42 +14,64 @@ struct WordBookView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .bottomLeading) {
-                VStack {
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else if let error = viewModel.errorMessage {
-                        errorView(message: error)
-                    } else if viewModel.words.isEmpty {
-                        emptyStateView
-                    } else {
-                        wordListView
-                    }
+            VStack(spacing: 0) {
+                // 主内容区域
+                if viewModel.isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let error = viewModel.errorMessage {
+                    errorView(message: error)
+                } else if viewModel.words.isEmpty {
+                    emptyStateView
+                } else {
+                    wordListView
                 }
 
-                // 左下角设置按钮
-                Button(action: { showingSettings = true }) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 12))
-                        .foregroundColor(.secondary)
+                // 底部工具栏
+                Divider()
+                HStack(spacing: 12) {
+                    BottomBarButton(icon: "gearshape", tooltip: "设置") {
+                        showingSettings = true
+                    }
+
+                    Divider()
+                        .frame(height: 16)
+
+                    BottomBarButton(icon: "square.and.arrow.down", tooltip: "导入 - 从 CSV/JSON 文件导入单词") {
+                        viewModel.importWords()
+                    }
+
+                    BottomBarMenu(icon: "square.and.arrow.up", tooltip: "导出 - 将单词导出为文件备份") {
+                        Button(action: { viewModel.exportWords(format: .csv) }) {
+                            Label("CSV 格式", systemImage: "tablecells")
+                        }
+                        Button(action: { viewModel.exportWords(format: .json) }) {
+                            Label("JSON 格式", systemImage: "doc.text")
+                        }
+                    }
+
+                    BottomBarButton(icon: "arrow.clockwise", tooltip: "刷新 - 重新加载单词列表") {
+                        viewModel.loadWords()
+                    }
+
+                    Spacer()
                 }
-                .buttonStyle(.plain)
-                .padding(8)
-                .help("设置")
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.bar)
             }
             .searchable(text: $viewModel.searchText, prompt: "搜索单词")
             .onChange(of: viewModel.searchText) { _, _ in
                 viewModel.loadWords()
             }
             .navigationTitle("单词本")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: { viewModel.loadWords() }) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .help("刷新")
-                }
+            .alert("Success", isPresented: .init(
+                get: { viewModel.successMessage != nil },
+                set: { if !$0 { viewModel.clearSuccessMessage() } }
+            )) {
+                Button("OK") { viewModel.clearSuccessMessage() }
+            } message: {
+                Text(viewModel.successMessage ?? "")
             }
             .sheet(isPresented: $showingSettings) {
                 WordBookSettingsView()
@@ -549,4 +571,62 @@ class KeyRecorderNSView: NSView {
     }
 
     override var acceptsFirstResponder: Bool { true }
+}
+
+// MARK: - Bottom Bar Button
+
+private struct BottomBarButton: View {
+    let icon: String
+    let tooltip: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundColor(isHovered ? .primary : .secondary)
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .help(tooltip)
+    }
+}
+
+// MARK: - Bottom Bar Menu
+
+private struct BottomBarMenu<Content: View>: View {
+    let icon: String
+    let tooltip: String
+    @ViewBuilder let content: () -> Content
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Menu {
+            content()
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundColor(isHovered ? .primary : .secondary)
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+                )
+        }
+        .menuStyle(.borderlessButton)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .help(tooltip)
+    }
 }

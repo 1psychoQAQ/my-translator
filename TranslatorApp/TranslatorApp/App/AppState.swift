@@ -171,8 +171,16 @@ private class PlaceholderWordBookManager: WordBookManagerProtocol {
         try realManager?.save(word)
     }
 
+    func saveAll(_ words: [Word], skipDuplicates: Bool) throws -> Int {
+        try realManager?.saveAll(words, skipDuplicates: skipDuplicates) ?? 0
+    }
+
     func delete(_ word: Word) throws {
         try realManager?.delete(word)
+    }
+
+    func deleteAll() throws {
+        try realManager?.deleteAll()
     }
 
     func fetchAll() throws -> [Word] {

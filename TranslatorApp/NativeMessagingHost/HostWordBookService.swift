@@ -78,6 +78,14 @@ final class HostWordBookService: Sendable {
         context.insert(word)
         try context.save()
 
+        // 发送分布式通知，通知主应用刷新单词本
+        DistributedNotificationCenter.default().postNotificationName(
+            NSNotification.Name("com.translator.app.wordBookDidChange"),
+            object: nil,
+            userInfo: nil,
+            deliverImmediately: true
+        )
+
         NativeMessagingHost.log("Saved word: \(text) -> \(translation)")
     }
 }

@@ -125,10 +125,9 @@ final class SelectionOverlayWindow: NSPanel {
     }
 
     func show() {
-        // 强制激活应用，确保能在全屏应用上显示
-        NSApp.activate(ignoringOtherApps: true)
-        // 使用 makeKeyAndOrderFront 确保窗口获得焦点并显示在最前
-        makeKeyAndOrderFront(nil)
+        // 使用 orderFrontRegardless 在不激活应用的情况下显示窗口
+        // 这样不会触发 Space 切换，配合 nonactivatingPanel 使用
+        orderFrontRegardless()
         NSCursor.crosshair.push()
     }
 
