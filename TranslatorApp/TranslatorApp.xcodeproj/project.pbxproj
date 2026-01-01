@@ -21,6 +21,7 @@
 		E10000010000000000000013 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000013 /* Assets.xcassets */; };
 		E10000010000000000000014 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000014 /* AppState.swift */; };
 		E10000010000000000000015 /* PermissionsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000015 /* PermissionsManager.swift */; };
+		E10000010000000000000016 /* PermissionsOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000016 /* PermissionsOnboardingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +58,7 @@
 		E10000020000000000000013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E10000020000000000000014 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		E10000020000000000000015 /* PermissionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManager.swift; sourceTree = "<group>"; };
+		E10000020000000000000016 /* PermissionsOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsOnboardingView.swift; sourceTree = "<group>"; };
 		E10000030000000000000001 /* TranslatorApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TranslatorApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E10000040000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E10000040000000000000002 /* TranslatorApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TranslatorApp.entitlements; sourceTree = "<group>"; };
@@ -155,10 +157,19 @@
 		E10000060000000000000007 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				E10000060000000000000013 /* Onboarding */,
 				E10000060000000000000008 /* ScreenshotTranslate */,
 				E10000060000000000000012 /* WordBook */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		E10000060000000000000013 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				E10000020000000000000016 /* PermissionsOnboardingView.swift */,
+			);
+			path = Onboarding;
 			sourceTree = "<group>";
 		};
 		E10000060000000000000008 /* ScreenshotTranslate */ = {
@@ -369,6 +380,7 @@
 				E10000010000000000000012 /* WordBookView.swift in Sources */,
 				E10000010000000000000014 /* AppState.swift in Sources */,
 				E10000010000000000000015 /* PermissionsManager.swift in Sources */,
+				E10000010000000000000016 /* PermissionsOnboardingView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
