@@ -42,14 +42,16 @@ final class SelectionOverlayWindow: NSWindow {
             defer: false
         )
 
-        // 使用较高的窗口层级，确保在所有普通窗口（包括 SwiftUI Window）之上
-        // 但避免使用 .screenSaver（会导致系统死锁）
-        self.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()) - 1)
+        // 使用最高窗口层级，确保能显示在全屏应用之上
+        self.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
         self.backgroundColor = .clear
         self.isOpaque = false
         self.hasShadow = false
         self.ignoresMouseEvents = false
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // 关键：canJoinAllSpaces 让窗口出现在所有桌面
+        // fullScreenAuxiliary 让窗口能显示在全屏应用上
+        // stationary 防止窗口跟随 Space 切换
+        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         self.isReleasedWhenClosed = false  // 防止 close() 自动释放，由 ARC 管理
 
         setupOverlayView()
