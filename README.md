@@ -11,6 +11,7 @@ A personal translation toolkit for macOS and Chrome. Zero-cost, privacy-first, w
 | Screenshot Translation | macOS | Capture screen region, OCR, and translate |
 | Word Book | macOS | Review saved words with source links |
 | Text-to-Speech | Both | Pronounce words using system TTS |
+| Cloud Sync | Chrome | Sync word book across devices via GitHub Gist |
 
 ## Architecture
 
@@ -59,6 +60,34 @@ The Chrome extension works **completely standalone** on any platform:
 - Translations via free web APIs (no API key required)
 - Word book stored in `chrome.storage.local`
 - TTS using browser's built-in speech synthesis
+
+## Cloud Sync
+
+Sync your word book across devices using GitHub Gist (free, private).
+
+### Setup
+
+1. Create a GitHub Personal Access Token with `gist` scope:
+   - Go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens)
+   - Generate new token with `gist` permission
+2. Configure sync in extension (via message API):
+   ```javascript
+   chrome.runtime.sendMessage({
+     type: 'SYNC_CONFIGURE',
+     config: { token: 'your-github-token', private: true }
+   });
+   ```
+3. Trigger sync:
+   ```javascript
+   chrome.runtime.sendMessage({ type: 'SYNC_NOW' });
+   ```
+
+### Features
+
+- **Automatic merge**: Words from all devices are merged intelligently
+- **Conflict resolution**: Newer versions win in case of conflicts
+- **Private by default**: Gists are created as private (secret)
+- **Export/Import**: Manual backup via JSON export
 
 ## Requirements
 

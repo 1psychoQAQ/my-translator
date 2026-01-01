@@ -3,11 +3,19 @@ import { createBackendManager, type BackendManager, type StoredWord, type Extens
 import { createNativeMessenger } from './native-messenger';
 import type { NativeMessenger, NativeMessage } from './types';
 import { TranslatorError, getUserMessage } from './errors';
+import {
+  createGistSyncService,
+  exportToJson,
+  parseImportData,
+  type SyncService,
+  type SyncConfig,
+} from './sync';
 
 // === Global State ===
 
 let backendManager: BackendManager;
 let nativeMessenger: NativeMessenger;
+let syncService: SyncService;
 const translationCache = createTranslationCache();
 let isInitialized = false;
 
@@ -22,6 +30,9 @@ async function initialize(): Promise<void> {
 
   // Native messenger for direct native messaging (legacy support)
   nativeMessenger = createNativeMessenger();
+
+  // Sync service for cloud backup
+  syncService = createGistSyncService();
 
   console.log(
     `[Translator] Initialized with ${backendManager.resolvedMode} backend`
@@ -94,6 +105,23 @@ interface ImportWordsMessage {
   merge?: boolean;
 }
 
+interface SyncConfigureMessage {
+  type: 'SYNC_CONFIGURE';
+  config: SyncConfig;
+}
+
+interface SyncStatusMessage {
+  type: 'SYNC_STATUS';
+}
+
+interface SyncNowMessage {
+  type: 'SYNC_NOW';
+}
+
+interface SyncDisconnectMessage {
+  type: 'SYNC_DISCONNECT';
+}
+
 type BackgroundMessage =
   | TranslateMessage
   | SaveWordMessage
@@ -105,7 +133,11 @@ type BackgroundMessage =
   | GetBackendInfoMessage
   | GetWordsMessage
   | ExportWordsMessage
-  | ImportWordsMessage;
+  | ImportWordsMessage
+  | SyncConfigureMessage
+  | SyncStatusMessage
+  | SyncNowMessage
+  | SyncDisconnectMessage;
 
 chrome.runtime.onMessage.addListener(
   (
@@ -239,13 +271,13 @@ async function handleMessage(
 
       case 'EXPORT_WORDS': {
         const words = await backendManager.storage.getAll();
-        const json = JSON.stringify(words, null, 2);
+        const json = exportToJson(words, { includeMetadata: true });
         sendResponse({ success: true, json });
         break;
       }
 
       case 'IMPORT_WORDS': {
-        const importedWords = JSON.parse(message.json) as StoredWord[];
+        const importedWords = parseImportData(message.json);
         let imported = 0;
         let skipped = 0;
 
@@ -264,6 +296,51 @@ async function handleMessage(
         }
 
         sendResponse({ success: true, imported, skipped });
+        break;
+      }
+
+      case 'SYNC_CONFIGURE': {
+        await syncService.configure(message.config);
+        sendResponse({ success: true });
+        break;
+      }
+
+      case 'SYNC_STATUS': {
+        const configured = await syncService.isConfigured();
+        sendResponse({
+          success: true,
+          status: {
+            configured,
+            provider: syncService.provider,
+          },
+        });
+        break;
+      }
+
+      case 'SYNC_NOW': {
+        const words = await backendManager.storage.getAll();
+        const result = await syncService.sync(words);
+
+        // If sync added new words, save them to local storage
+        if (result.success && result.added > 0) {
+          const remoteData = await syncService.pull();
+          if (remoteData) {
+            for (const word of remoteData.words) {
+              const exists = await backendManager.storage.exists(word.text);
+              if (!exists) {
+                await backendManager.storage.save(word);
+              }
+            }
+          }
+        }
+
+        sendResponse({ success: result.success, result });
+        break;
+      }
+
+      case 'SYNC_DISCONNECT': {
+        await syncService.disconnect();
+        sendResponse({ success: true });
         break;
       }
 
