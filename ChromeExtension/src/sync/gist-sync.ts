@@ -57,7 +57,6 @@ async function clearConfig(): Promise<void> {
 }
 
 export function createGistSyncService(): SyncService {
-  const deviceId = generateDeviceId();
 
   async function apiRequest<T>(
     endpoint: string,
@@ -272,6 +271,7 @@ export function createGistSyncService(): SyncService {
         ).length;
 
         // Push merged data
+        const deviceId = await generateDeviceId();
         const syncData = createSyncData(merged, deviceId);
         const { remoteId } = await this.push(syncData);
 

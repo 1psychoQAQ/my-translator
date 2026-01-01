@@ -32,10 +32,10 @@ export interface ImportResult {
 /**
  * Export words to JSON string
  */
-export function exportToJson(
+export async function exportToJson(
   words: StoredWord[],
   options: ExportOptions = {}
-): string {
+): Promise<string> {
   const {
     includeMetadata = true,
     prettyPrint = true,
@@ -63,7 +63,8 @@ export function exportToJson(
   }
 
   if (includeMetadata) {
-    const syncData = createSyncData(filteredWords, generateDeviceId());
+    const deviceId = await generateDeviceId();
+    const syncData = createSyncData(filteredWords, deviceId);
     return JSON.stringify(syncData, null, prettyPrint ? 2 : 0);
   } else {
     return JSON.stringify(filteredWords, null, prettyPrint ? 2 : 0);

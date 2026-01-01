@@ -322,19 +322,19 @@ function showWordPopup(
       .icon-btn {
         background: transparent;
         color: rgba(255, 255, 255, 0.5);
-        padding: 2px 6px;
+        padding: 4px 6px;
         min-width: auto;
-        font-size: 12px;
+        font-size: 11px;
         display: inline-flex;
         align-items: center;
-        gap: 2px;
+        transition: all 0.15s ease;
       }
       .icon-btn:hover {
-        color: white;
+        color: rgba(255, 255, 255, 0.9);
         background: rgba(255, 255, 255, 0.1);
       }
       .icon-btn.copied {
-        color: #34c759;
+        color: rgba(255, 255, 255, 0.9);
       }
       .word-row {
         display: flex;
@@ -347,8 +347,12 @@ function showWordPopup(
         <div class="section-header">
           <span class="section-label">原文</span>
           <div class="word-row">
-            <button class="icon-btn copy-original-btn" title="复制原文">📋</button>
-            <button class="icon-btn speak-btn" title="朗读">🔊</button>
+            <button class="icon-btn copy-original-btn" title="复制">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
+            <button class="icon-btn speak-btn" title="朗读">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            </button>
           </div>
         </div>
         <div class="section-text original-text">${escapeHtml(originalText)}</div>
@@ -357,7 +361,9 @@ function showWordPopup(
       <div class="section">
         <div class="section-header">
           <span class="section-label">译文</span>
-          <button class="icon-btn copy-translation-btn" title="复制译文">📋</button>
+          <button class="icon-btn copy-translation-btn" title="复制">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          </button>
         </div>
         <div class="section-text">${escapeHtml(translation)}</div>
       </div>
@@ -389,22 +395,22 @@ function showWordPopup(
 
   copyOriginalBtn?.addEventListener('click', () => {
     copyToClipboard(originalText);
-    copyOriginalBtn.textContent = '✓';
+    copyOriginalBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
     copyOriginalBtn.classList.add('copied');
     setTimeout(() => {
-      copyOriginalBtn.textContent = '📋';
+      copyOriginalBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
       copyOriginalBtn.classList.remove('copied');
-    }, 1500);
+    }, 1200);
   });
 
   copyTranslationBtn?.addEventListener('click', () => {
     copyToClipboard(translation);
-    copyTranslationBtn.textContent = '✓';
+    copyTranslationBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
     copyTranslationBtn.classList.add('copied');
     setTimeout(() => {
-      copyTranslationBtn.textContent = '📋';
+      copyTranslationBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
       copyTranslationBtn.classList.remove('copied');
-    }, 1500);
+    }, 1200);
   });
 
   const popupInner = shadow.querySelector('.popup') as HTMLElement;

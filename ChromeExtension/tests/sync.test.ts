@@ -8,17 +8,33 @@ import {
 } from '../src/sync/export-import';
 import { createSyncData, generateDeviceId, SYNC_DATA_VERSION } from '../src/sync/types';
 
-// Mock localStorage
-const mockLocalStorage: Record<string, string> = {};
+// Mock chrome.storage.local
+const mockStorage: Record<string, unknown> = {};
 
-vi.stubGlobal('localStorage', {
-  getItem: vi.fn((key: string) => mockLocalStorage[key] || null),
-  setItem: vi.fn((key: string, value: string) => {
-    mockLocalStorage[key] = value;
-  }),
-  removeItem: vi.fn((key: string) => {
-    delete mockLocalStorage[key];
-  }),
+vi.stubGlobal('chrome', {
+  storage: {
+    local: {
+      get: vi.fn((keys: string | string[]) => {
+        if (typeof keys === 'string') {
+          return Promise.resolve({ [keys]: mockStorage[keys] });
+        }
+        const result: Record<string, unknown> = {};
+        keys.forEach((key) => {
+          result[key] = mockStorage[key];
+        });
+        return Promise.resolve(result);
+      }),
+      set: vi.fn((items: Record<string, unknown>) => {
+        Object.assign(mockStorage, items);
+        return Promise.resolve();
+      }),
+      remove: vi.fn((keys: string | string[]) => {
+        const keyArray = typeof keys === 'string' ? [keys] : keys;
+        keyArray.forEach((key) => delete mockStorage[key]);
+        return Promise.resolve();
+      }),
+    },
+  },
 });
 
 describe('Export/Import', () => {
@@ -44,12 +60,12 @@ describe('Export/Import', () => {
   ];
 
   beforeEach(() => {
-    Object.keys(mockLocalStorage).forEach((key) => delete mockLocalStorage[key]);
+    Object.keys(mockStorage).forEach((key) => delete mockStorage[key]);
   });
 
   describe('exportToJson', () => {
-    it('should export with metadata by default', () => {
-      const json = exportToJson(sampleWords);
+    it('should export with metadata by default', async () => {
+      const json = await exportToJson(sampleWords);
       const parsed = JSON.parse(json) as SyncData;
 
       expect(parsed.version).toBe(SYNC_DATA_VERSION);
@@ -57,16 +73,16 @@ describe('Export/Import', () => {
       expect(parsed.words).toHaveLength(2);
     });
 
-    it('should export without metadata when specified', () => {
-      const json = exportToJson(sampleWords, { includeMetadata: false });
+    it('should export without metadata when specified', async () => {
+      const json = await exportToJson(sampleWords, { includeMetadata: false });
       const parsed = JSON.parse(json) as StoredWord[];
 
       expect(Array.isArray(parsed)).toBe(true);
       expect(parsed).toHaveLength(2);
     });
 
-    it('should filter by date range', () => {
-      const json = exportToJson(sampleWords, {
+    it('should filter by date range', async () => {
+      const json = await exportToJson(sampleWords, {
         dateRange: { from: 1700000000500 },
       });
       const parsed = JSON.parse(json) as SyncData;
@@ -75,8 +91,8 @@ describe('Export/Import', () => {
       expect(parsed.words[0].text).toBe('world');
     });
 
-    it('should filter by tags', () => {
-      const json = exportToJson(sampleWords, {
+    it('should filter by tags', async () => {
+      const json = await exportToJson(sampleWords, {
         tags: ['greeting'],
       });
       const parsed = JSON.parse(json) as SyncData;
@@ -141,7 +157,7 @@ describe('Export/Import', () => {
 
 describe('Sync Types', () => {
   beforeEach(() => {
-    Object.keys(mockLocalStorage).forEach((key) => delete mockLocalStorage[key]);
+    Object.keys(mockStorage).forEach((key) => delete mockStorage[key]);
   });
 
   describe('createSyncData', () => {
@@ -167,9 +183,9 @@ describe('Sync Types', () => {
   });
 
   describe('generateDeviceId', () => {
-    it('should generate and persist device ID', () => {
-      const id1 = generateDeviceId();
-      const id2 = generateDeviceId();
+    it('should generate and persist device ID', async () => {
+      const id1 = await generateDeviceId();
+      const id2 = await generateDeviceId();
 
       expect(id1).toBe(id2); // Should return same ID
       expect(id1).toMatch(/^device_\d+_[a-z0-9]+$/);

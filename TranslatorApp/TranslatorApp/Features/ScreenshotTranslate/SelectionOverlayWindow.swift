@@ -614,17 +614,14 @@ private struct OverlayResultView: View {
                     Spacer()
                     // 复制原文按钮
                     Button(action: copyOriginal) {
-                        HStack(spacing: 2) {
-                            Image(systemName: showCopiedOriginal ? "checkmark" : "doc.on.doc")
-                                .font(.system(size: 10))
-                            if showCopiedOriginal {
-                                Text("已复制")
-                                    .font(.system(size: 10))
-                            }
-                        }
-                        .foregroundColor(showCopiedOriginal ? .green : .white.opacity(0.6))
+                        Image(systemName: showCopiedOriginal ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 10, weight: showCopiedOriginal ? .semibold : .regular))
+                            .foregroundColor(.white.opacity(showCopiedOriginal ? 0.9 : 0.5))
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .animation(.easeInOut(duration: 0.15), value: showCopiedOriginal)
                 }
                 ScrollView {
                     Text(original)
@@ -648,17 +645,14 @@ private struct OverlayResultView: View {
                     Spacer()
                     // 复制译文按钮
                     Button(action: copyTranslation) {
-                        HStack(spacing: 2) {
-                            Image(systemName: showCopiedTranslation ? "checkmark" : "doc.on.doc")
-                                .font(.system(size: 10))
-                            if showCopiedTranslation {
-                                Text("已复制")
-                                    .font(.system(size: 10))
-                            }
-                        }
-                        .foregroundColor(showCopiedTranslation ? .green : .white.opacity(0.6))
+                        Image(systemName: showCopiedTranslation ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 10, weight: showCopiedTranslation ? .semibold : .regular))
+                            .foregroundColor(.white.opacity(showCopiedTranslation ? 0.9 : 0.5))
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .animation(.easeInOut(duration: 0.15), value: showCopiedTranslation)
                 }
                 ScrollView {
                     Text(translated)

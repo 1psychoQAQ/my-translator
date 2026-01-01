@@ -100,13 +100,13 @@ export function createSyncData(
   };
 }
 
-export function generateDeviceId(): string {
-  // Generate a persistent device ID
-  const stored = localStorage.getItem('translator_device_id');
-  if (stored) {
-    return stored;
+export async function generateDeviceId(): Promise<string> {
+  // Generate a persistent device ID using chrome.storage.local
+  const result = await chrome.storage.local.get('translator_device_id');
+  if (result.translator_device_id) {
+    return result.translator_device_id as string;
   }
   const newId = `device_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  localStorage.setItem('translator_device_id', newId);
+  await chrome.storage.local.set({ translator_device_id: newId });
   return newId;
 }
