@@ -15,19 +15,18 @@ final class PermissionsManager {
         CGPreflightScreenCaptureAccess()
     }
 
-    /// 请求屏幕录制权限，如果没有则跳转到系统设置
+    /// 请求屏幕录制权限
+    /// - 首次请求会弹出系统权限对话框，应用自动添加到列表
+    /// - 如果已被拒绝，则打开系统设置让用户手动开启
     func requestScreenCapturePermission() {
         if hasScreenCapturePermission {
             return
         }
 
-        // 尝试请求权限（会弹出系统提示）
-        let granted = CGRequestScreenCaptureAccess()
-
-        if !granted {
-            // 如果用户拒绝或需要手动授权，打开系统设置
-            openScreenCaptureSettings()
-        }
+        // CGRequestScreenCaptureAccess() 会触发系统权限弹窗
+        // 应用会自动添加到「屏幕录制」列表中
+        // 用户只需勾选即可
+        let _ = CGRequestScreenCaptureAccess()
     }
 
     /// 打开系统设置 - 屏幕录制
@@ -44,14 +43,18 @@ final class PermissionsManager {
         AXIsProcessTrusted()
     }
 
-    /// 请求辅助功能权限，如果没有则跳转到系统设置
+    /// 请求辅助功能权限
+    /// - 会弹出系统权限对话框，应用自动添加到列表
+    /// - 用户只需在系统设置中勾选即可
     func requestAccessibilityPermission() {
         if hasAccessibilityPermission {
             return
         }
 
-        // 打开系统设置并提示用户授权
-        openAccessibilitySettings()
+        // 使用 kAXTrustedCheckOptionPrompt 触发系统权限弹窗
+        // 应用会自动添加到「辅助功能」列表中
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        AXIsProcessTrustedWithOptions(options)
     }
 
     /// 打开系统设置 - 辅助功能

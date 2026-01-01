@@ -40,7 +40,8 @@ struct PermissionsOnboardingView: View {
                     description: "用于截取屏幕内容进行 OCR 识别",
                     isGranted: screenCaptureGranted,
                     action: {
-                        PermissionsManager.shared.openScreenCaptureSettings()
+                        // 触发系统权限弹窗，应用自动添加到列表
+                        PermissionsManager.shared.requestScreenCapturePermission()
                     }
                 )
 
@@ -53,7 +54,8 @@ struct PermissionsOnboardingView: View {
                     description: "用于监听全局快捷键",
                     isGranted: accessibilityGranted,
                     action: {
-                        PermissionsManager.shared.openAccessibilitySettings()
+                        // 触发系统权限弹窗，应用自动添加到列表
+                        PermissionsManager.shared.requestAccessibilityPermission()
                     }
                 )
             }
