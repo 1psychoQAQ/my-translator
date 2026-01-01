@@ -3,7 +3,8 @@ import AppKit
 
 /// 权限引导视图 - 系统风格
 struct PermissionsOnboardingView: View {
-    @Environment(\.dismiss) private var dismiss
+    var onClose: () -> Void = {}
+
     @State private var screenCaptureGranted = false
     @State private var accessibilityGranted = false
 
@@ -67,7 +68,7 @@ struct PermissionsOnboardingView: View {
             // 底部按钮
             HStack {
                 Button("稍后设置") {
-                    dismiss()
+                    onClose()
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.secondary)
@@ -75,13 +76,12 @@ struct PermissionsOnboardingView: View {
                 Spacer()
 
                 Button(action: {
-                    dismiss()
+                    onClose()
                 }) {
                     Text(allPermissionsGranted ? "完成" : "继续")
                         .frame(minWidth: 80)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!allPermissionsGranted && false) // 允许跳过
             }
             .padding(16)
         }
@@ -109,7 +109,7 @@ struct PermissionsOnboardingView: View {
         // 如果所有权限都已授予，自动关闭
         if allPermissionsGranted {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                dismiss()
+                onClose()
             }
         }
     }
@@ -197,7 +197,9 @@ final class PermissionsWindowController {
 
     /// 强制显示权限引导窗口
     func show() {
-        let contentView = PermissionsOnboardingView()
+        let contentView = PermissionsOnboardingView(onClose: { [weak self] in
+            self?.close()
+        })
 
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.setFrameSize(hostingView.fittingSize)
