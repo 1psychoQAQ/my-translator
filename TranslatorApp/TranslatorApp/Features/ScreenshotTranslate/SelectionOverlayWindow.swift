@@ -13,7 +13,7 @@ enum SelectionAction {
 
 // MARK: - 选区窗口
 
-final class SelectionOverlayWindow: NSWindow {
+final class SelectionOverlayWindow: NSPanel {
 
     private let completion: (SelectionAction) -> Void
     private let onTranslate: (CGRect) async throws -> (original: String, translated: String)
@@ -37,28 +37,32 @@ final class SelectionOverlayWindow: NSWindow {
 
         super.init(
             contentRect: screenFrame,
-            styleMask: .borderless,
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
-        // 使用最高窗口层级，确保能显示在全屏应用之上
-        self.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
+        // 使用 screenSaver 级别，这是最高的窗口层级，能覆盖全屏应用
+        self.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
         self.backgroundColor = .clear
         self.isOpaque = false
         self.hasShadow = false
         self.ignoresMouseEvents = false
-        // 关键：canJoinAllSpaces 让窗口出现在所有桌面
-        // fullScreenAuxiliary 让窗口能显示在全屏应用上
-        // stationary 防止窗口跟随 Space 切换
-        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-        self.isReleasedWhenClosed = false  // 防止 close() 自动释放，由 ARC 管理
+        // 关键设置：
+        // - canJoinAllSpaces: 让窗口出现在所有 Space
+        // - fullScreenAuxiliary: 允许显示在全屏应用上
+        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        self.isReleasedWhenClosed = false
+        // Panel 特有设置：即使应用不活跃也能接收事件
+        self.hidesOnDeactivate = false
+        self.isFloatingPanel = true
+        self.worksWhenModal = true
 
         setupOverlayView()
         setupKeyboardMonitor()
     }
 
-    override var canBecomeKey: Bool { false }
+    override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 
     deinit {
@@ -121,7 +125,10 @@ final class SelectionOverlayWindow: NSWindow {
     }
 
     func show() {
-        orderFront(nil)
+        // 强制激活应用，确保能在全屏应用上显示
+        NSApp.activate(ignoringOtherApps: true)
+        // 使用 makeKeyAndOrderFront 确保窗口获得焦点并显示在最前
+        makeKeyAndOrderFront(nil)
         NSCursor.crosshair.push()
     }
 
