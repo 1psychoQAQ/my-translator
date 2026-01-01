@@ -10,6 +10,13 @@ import {
   type SyncService,
   type SyncConfig,
 } from './sync';
+import {
+  trackTranslation,
+  trackWordSaved,
+  markAsSupporter,
+  dismissPrompt,
+  getStats,
+} from './support';
 
 // === Global State ===
 
@@ -122,6 +129,18 @@ interface SyncDisconnectMessage {
   type: 'SYNC_DISCONNECT';
 }
 
+interface MarkAsSupporterMessage {
+  type: 'MARK_AS_SUPPORTER';
+}
+
+interface DismissPromptMessage {
+  type: 'DISMISS_PROMPT';
+}
+
+interface GetSupportStatsMessage {
+  type: 'GET_SUPPORT_STATS';
+}
+
 type BackgroundMessage =
   | TranslateMessage
   | SaveWordMessage
@@ -137,7 +156,10 @@ type BackgroundMessage =
   | SyncConfigureMessage
   | SyncStatusMessage
   | SyncNowMessage
-  | SyncDisconnectMessage;
+  | SyncDisconnectMessage
+  | MarkAsSupporterMessage
+  | DismissPromptMessage
+  | GetSupportStatsMessage;
 
 chrome.runtime.onMessage.addListener(
   (
@@ -172,8 +194,16 @@ async function handleMessage(
           ? `${message.text}::${message.context}`
           : message.text;
         const cached = translationCache.get(cacheKey);
+
+        // Track usage (even for cached results)
+        const coffeePrompt = await trackTranslation();
+
         if (cached) {
-          sendResponse({ success: true, translation: cached });
+          sendResponse({
+            success: true,
+            translation: cached,
+            coffeePrompt: coffeePrompt.shouldShow ? coffeePrompt : undefined,
+          });
           return;
         }
 
@@ -185,12 +215,17 @@ async function handleMessage(
         // Cache the result
         translationCache.set(cacheKey, translation);
 
-        sendResponse({ success: true, translation });
+        sendResponse({
+          success: true,
+          translation,
+          coffeePrompt: coffeePrompt.shouldShow ? coffeePrompt : undefined,
+        });
         break;
       }
 
       case 'SAVE_WORD': {
         await backendManager.saveWord(message.word);
+        await trackWordSaved();
         sendResponse({ success: true });
         break;
       }
@@ -207,6 +242,7 @@ async function handleMessage(
           createdAt: Date.now(),
         };
         await backendManager.saveWord(word);
+        await trackWordSaved();
         sendResponse({ success: true, word });
         break;
       }
@@ -341,6 +377,24 @@ async function handleMessage(
       case 'SYNC_DISCONNECT': {
         await syncService.disconnect();
         sendResponse({ success: true });
+        break;
+      }
+
+      case 'MARK_AS_SUPPORTER': {
+        await markAsSupporter();
+        sendResponse({ success: true });
+        break;
+      }
+
+      case 'DISMISS_PROMPT': {
+        await dismissPrompt();
+        sendResponse({ success: true });
+        break;
+      }
+
+      case 'GET_SUPPORT_STATS': {
+        const stats = await getStats();
+        sendResponse({ success: true, stats });
         break;
       }
 

@@ -1,10 +1,9 @@
-import { createTranslationCache } from './cache';
 import { createMessengerWithFallback } from './native-messenger';
-import { createTranslator } from './translator';
 import { createWordBookService, createWordEntry } from './wordbook';
 import { createToast } from './toast';
 import { TranslatorError, ErrorCode, getUserMessage } from './errors';
-import type { Translator, WordBookService, ToastNotification, NativeMessenger } from './types';
+import type { WordBookService, ToastNotification, NativeMessenger } from './types';
+import { showCoffeePrompt } from './support';
 
 // === Constants ===
 
@@ -15,7 +14,6 @@ const SENTENCE_END_PATTERN = /[.!?。！？；;]/;
 
 // === Global State ===
 
-let translator: Translator;
 let wordBook: WordBookService;
 let toast: ToastNotification;
 let messenger: NativeMessenger;
@@ -39,15 +37,55 @@ function speakText(text: string): void {
   });
 }
 
+// === Translation via Background Script ===
+
+interface TranslateResponse {
+  success: boolean;
+  translation?: string;
+  error?: string;
+  coffeePrompt?: {
+    shouldShow: boolean;
+    translationCount: number;
+    milestone?: number;
+  };
+}
+
+async function translateText(text: string, context?: string): Promise<TranslateResponse> {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(
+      { type: 'TRANSLATE', text, context },
+      (response: TranslateResponse) => {
+        if (chrome.runtime.lastError) {
+          resolve({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          resolve(response);
+        }
+      }
+    );
+  });
+}
+
+function handleCoffeePrompt(translationCount: number): void {
+  showCoffeePrompt({
+    translationCount,
+    onSupport: () => {
+      chrome.runtime.sendMessage({ type: 'MARK_AS_SUPPORTER' });
+    },
+    onDismiss: () => {
+      chrome.runtime.sendMessage({ type: 'DISMISS_PROMPT' });
+    },
+    onAlreadySupported: () => {
+      chrome.runtime.sendMessage({ type: 'MARK_AS_SUPPORTER' });
+    },
+  });
+}
+
 // === Initialization ===
 
 async function initialize(): Promise<void> {
   if (isInitialized) return;
 
   messenger = await createMessengerWithFallback();
-  const cache = createTranslationCache();
-
-  translator = createTranslator(messenger, cache);
   wordBook = createWordBookService(messenger);
   toast = createToast();
 
@@ -419,7 +457,22 @@ async function handleMouseUp(event: MouseEvent): Promise<void> {
 
   try {
     // 传入句子作为上下文，实现语境翻译
-    const translation = await translator.translate(selectedText, sentence);
+    const response = await translateText(selectedText, sentence);
+
+    if (!response.success || !response.translation) {
+      toast.error(response.error || '翻译失败');
+      return;
+    }
+
+    const translation = response.translation;
+
+    // Show coffee prompt if triggered
+    if (response.coffeePrompt?.shouldShow) {
+      // Delay slightly so it doesn't interfere with popup
+      setTimeout(() => {
+        handleCoffeePrompt(response.coffeePrompt!.translationCount);
+      }, 500);
+    }
 
     showWordPopup(
       event.clientX,
