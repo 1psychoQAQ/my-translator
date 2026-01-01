@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import ScreenCaptureKit
+import AVFoundation
 
 // MARK: - 用户操作结果
 
@@ -603,6 +604,9 @@ private struct OverlayResultView: View {
     @State private var showCopiedOriginal = false
     @State private var showCopiedTranslation = false
 
+    // 保持 synthesizer 引用，避免被释放导致发音中断
+    private static let speechSynthesizer = AVSpeechSynthesizer()
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // 原文
@@ -622,6 +626,15 @@ private struct OverlayResultView: View {
                     }
                     .buttonStyle(.plain)
                     .animation(.easeInOut(duration: 0.15), value: showCopiedOriginal)
+                    // 朗读原文按钮
+                    Button(action: speakOriginal) {
+                        Image(systemName: "speaker.wave.2")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.5))
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
                 ScrollView {
                     Text(original)
@@ -723,6 +736,26 @@ private struct OverlayResultView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             showCopiedTranslation = false
         }
+    }
+
+    private func speakOriginal() {
+        // 如果正在朗读，先停止
+        if Self.speechSynthesizer.isSpeaking {
+            Self.speechSynthesizer.stopSpeaking(at: .immediate)
+        }
+
+        let utterance = AVSpeechUtterance(string: original)
+        // 根据文本内容自动选择语音
+        if original.range(of: "\\p{Han}", options: .regularExpression) != nil {
+            // 包含中文，使用中文语音
+            utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN")
+        } else {
+            // 默认使用英文语音
+            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        }
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+
+        Self.speechSynthesizer.speak(utterance)
     }
 }
 
