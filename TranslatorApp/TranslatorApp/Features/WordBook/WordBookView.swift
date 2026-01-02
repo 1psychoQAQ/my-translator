@@ -55,6 +55,12 @@ struct WordBookView: View {
                     }
 
                     Spacer()
+
+                    BottomBarButton(icon: "bubble.left.and.exclamationmark.bubble.right", tooltip: "反馈 - 提交问题或建议") {
+                        if let url = URL(string: "https://github.com/1psychoQAQ/my-translator/issues") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)

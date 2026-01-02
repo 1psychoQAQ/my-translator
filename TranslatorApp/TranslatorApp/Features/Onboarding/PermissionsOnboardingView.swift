@@ -4,11 +4,19 @@ import AppKit
 /// 权限引导视图 - 系统风格
 struct PermissionsOnboardingView: View {
     var onClose: () -> Void = {}
+    var onMoveToCorner: () -> Void = {}  // 移动窗口到角落
 
     @State private var screenCaptureGranted = false
     @State private var accessibilityGranted = false
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    /// 当前步骤：1=辅助功能，2=屏幕录制，3=完成
+    private var currentStep: Int {
+        if !accessibilityGranted { return 1 }
+        if !screenCaptureGranted { return 2 }
+        return 3
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,7 +30,7 @@ struct PermissionsOnboardingView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
 
-                Text("为了正常使用截图翻译功能，请授予以下权限")
+                Text(stepDescription)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
@@ -35,29 +43,29 @@ struct PermissionsOnboardingView: View {
 
             // 权限列表
             VStack(spacing: 0) {
+                // 第一步：辅助功能
                 PermissionRow(
-                    icon: "rectangle.dashed.badge.record",
-                    title: "屏幕录制",
-                    description: "用于截取屏幕内容进行 OCR 识别",
-                    isGranted: screenCaptureGranted,
-                    action: {
-                        // 触发系统权限弹窗，应用自动添加到列表
-                        PermissionsManager.shared.requestScreenCapturePermission()
-                    }
+                    icon: "keyboard",
+                    title: "第一步：辅助功能",
+                    description: "用于监听全局快捷键",
+                    isGranted: accessibilityGranted,
+                    showButton: currentStep == 1,
+                    buttonTitle: "去授权",
+                    action: authorizeAccessibility
                 )
 
                 Divider()
                     .padding(.leading, 56)
 
+                // 第二步：屏幕录制
                 PermissionRow(
-                    icon: "keyboard",
-                    title: "辅助功能",
-                    description: "用于监听全局快捷键",
-                    isGranted: accessibilityGranted,
-                    action: {
-                        // 触发系统权限弹窗，应用自动添加到列表
-                        PermissionsManager.shared.requestAccessibilityPermission()
-                    }
+                    icon: "rectangle.dashed.badge.record",
+                    title: "第二步：屏幕录制",
+                    description: "用于截取屏幕内容进行 OCR 识别",
+                    isGranted: screenCaptureGranted,
+                    showButton: currentStep == 2,
+                    buttonTitle: "去授权",
+                    action: authorizeScreenCapture
                 )
             }
             .padding(.vertical, 8)
@@ -66,22 +74,46 @@ struct PermissionsOnboardingView: View {
                 .padding(.horizontal)
 
             // 底部按钮
-            HStack {
-                Button("稍后设置") {
-                    onClose()
-                }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+            VStack(spacing: 12) {
+                // 重启提示（权限已授予但需要重启）
+                if allPermissionsGranted {
+                    VStack(spacing: 8) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                            Text("权限已授予，需要重启应用生效")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
 
-                Spacer()
-
-                Button(action: {
-                    onClose()
-                }) {
-                    Text(allPermissionsGranted ? "完成" : "继续")
-                        .frame(minWidth: 80)
+                        Button(action: restartApp) {
+                            HStack {
+                                Image(systemName: "arrow.clockwise")
+                                Text("立即重启")
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
+
+                HStack {
+                    Button("稍后设置") {
+                        onClose()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    if !allPermissionsGranted {
+                        Button("跳过") {
+                            onClose()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
             }
             .padding(16)
         }
@@ -97,6 +129,14 @@ struct PermissionsOnboardingView: View {
         }
     }
 
+    private var stepDescription: String {
+        switch currentStep {
+        case 1: return "第一步：请先授权辅助功能权限"
+        case 2: return "第二步：请授权屏幕录制权限"
+        default: return "所有权限已授予！"
+        }
+    }
+
     private var allPermissionsGranted: Bool {
         screenCaptureGranted && accessibilityGranted
     }
@@ -105,12 +145,37 @@ struct PermissionsOnboardingView: View {
         let manager = PermissionsManager.shared
         screenCaptureGranted = manager.hasScreenCapturePermission
         accessibilityGranted = manager.hasAccessibilityPermission
+    }
 
-        // 如果所有权限都已授予，自动关闭
-        if allPermissionsGranted {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                onClose()
+    /// 授权辅助功能
+    private func authorizeAccessibility() {
+        onMoveToCorner()  // 移动窗口避免遮挡
+        PermissionsManager.shared.openAccessibilitySettings()
+    }
+
+    /// 授权屏幕录制
+    private func authorizeScreenCapture() {
+        onMoveToCorner()  // 降低窗口层级避免遮挡
+        // 先请求权限，让应用添加到系统设置列表中
+        PermissionsManager.shared.requestScreenCapturePermission()
+        PermissionsManager.shared.openScreenCaptureSettings()
+    }
+
+    /// 重启应用
+    private func restartApp() {
+        guard let bundlePath = Bundle.main.bundlePath as String? else { return }
+
+        let task = Process()
+        task.launchPath = "/usr/bin/open"
+        task.arguments = ["-n", bundlePath]
+
+        do {
+            try task.run()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                NSApp.terminate(nil)
             }
+        } catch {
+            print("重启失败: \(error)")
         }
     }
 }
@@ -121,22 +186,23 @@ private struct PermissionRow: View {
     let title: String
     let description: String
     let isGranted: Bool
-    let action: () -> Void
-
-    @State private var isHovered = false
+    var showButton: Bool = false
+    var buttonTitle: String = "授权"
+    var action: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 12) {
             // 图标
             Image(systemName: icon)
                 .font(.system(size: 20))
-                .foregroundColor(.blue)
+                .foregroundColor(isGranted ? .green : .blue)
                 .frame(width: 32, height: 32)
 
             // 文字
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(isGranted ? .secondary : .primary)
 
                 Text(description)
                     .font(.system(size: 11))
@@ -150,20 +216,20 @@ private struct PermissionRow: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 20))
                     .foregroundColor(.green)
-            } else {
-                Button("授权") {
+            } else if showButton {
+                Button(buttonTitle) {
                     action()
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderedProminent)
                 .controlSize(.small)
+            } else {
+                Image(systemName: "circle")
+                    .font(.system(size: 20))
+                    .foregroundColor(.secondary.opacity(0.3))
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(isHovered ? Color.primary.opacity(0.05) : Color.clear)
-        .onHover { hovering in
-            isHovered = hovering
-        }
     }
 }
 
@@ -197,9 +263,14 @@ final class PermissionsWindowController {
 
     /// 强制显示权限引导窗口
     func show() {
-        let contentView = PermissionsOnboardingView(onClose: { [weak self] in
-            self?.close()
-        })
+        let contentView = PermissionsOnboardingView(
+            onClose: { [weak self] in
+                self?.close()
+            },
+            onMoveToCorner: { [weak self] in
+                self?.moveToCorner()
+            }
+        )
 
         let hostingView = NSHostingView(rootView: contentView)
         hostingView.setFrameSize(hostingView.fittingSize)
@@ -231,6 +302,13 @@ final class PermissionsWindowController {
         self.window = window
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// 降低窗口层级，让系统设置显示在前面
+    func moveToCorner() {
+        guard let window = window else { return }
+        // 降低窗口层级，放在系统设置后面
+        window.level = .normal
     }
 
     func close() {
