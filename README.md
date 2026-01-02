@@ -8,8 +8,10 @@ A personal translation toolkit for macOS and Chrome. Zero-cost, privacy-first, w
 |---------|----------|-------------|
 | Web Translation | Chrome | Select text on any webpage to translate with context |
 | Word Collection | Chrome + macOS | Save words with sentence context to word book |
-| Screenshot Translation | macOS | Capture screen region, OCR, and translate |
+| Screenshot Translation | macOS | Capture screen region, OCR, and translate (works over fullscreen apps) |
 | Word Book | macOS | Review saved words with source links |
+| Import/Export | macOS | Export word book to CSV/JSON, import from other apps |
+| Auto Refresh | macOS | Word book auto-refreshes when new words are saved |
 | Text-to-Speech | Both | Pronounce words using system TTS |
 | Cloud Sync | Chrome | Sync word book across devices via GitHub Gist |
 
