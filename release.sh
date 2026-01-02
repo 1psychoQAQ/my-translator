@@ -23,6 +23,9 @@ echo "  Translator Release v$VERSION"
 echo "================================================"
 echo ""
 
+# 清除可能干扰 gh 的环境变量
+unset GITHUB_TOKEN
+
 # 检查 gh 是否已登录
 if ! gh auth status &>/dev/null; then
     echo "❌ GitHub CLI 未登录"

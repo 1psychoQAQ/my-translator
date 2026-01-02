@@ -2,7 +2,6 @@ import Foundation
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
-import Combine
 
 @MainActor
 final class WordBookViewModel: ObservableObject {
@@ -15,31 +14,41 @@ final class WordBookViewModel: ObservableObject {
 
     private let wordBookManager: WordBookManagerProtocol
     private let importExportService = ImportExportService.shared
-    private var cancellables = Set<AnyCancellable>()
+    private var localObserver: NSObjectProtocol?
+    private var distributedObserver: NSObjectProtocol?
 
     init(wordBookManager: WordBookManagerProtocol) {
         self.wordBookManager = wordBookManager
         setupNotificationObserver()
     }
 
+    deinit {
+        if let observer = localObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = distributedObserver {
+            DistributedNotificationCenter.default().removeObserver(observer)
+        }
+    }
+
     private func setupNotificationObserver() {
         // 监听本地单词本变化通知（截图翻译收藏）
-        NotificationCenter.default.publisher(for: .wordBookDidChange)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.loadWords()
-            }
-            .store(in: &cancellables)
+        localObserver = NotificationCenter.default.addObserver(
+            forName: .wordBookDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.loadWords()
+        }
 
         // 监听分布式通知（Chrome 插件收藏，跨进程通信）
-        // 使用 Combine publisher 方式，更安全
-        DistributedNotificationCenter.default()
-            .publisher(for: NSNotification.Name("com.translator.app.wordBookDidChange"))
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in
-                self?.loadWords()
-            }
-            .store(in: &cancellables)
+        distributedObserver = DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("com.translator.app.wordBookDidChange"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.loadWords()
+        }
     }
 
     // MARK: - Export
