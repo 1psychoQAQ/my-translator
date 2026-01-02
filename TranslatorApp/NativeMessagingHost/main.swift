@@ -17,6 +17,9 @@ struct NativeMessagingHost {
 
     @MainActor
     static func main() async {
+        // 禁止在 Dock 显示图标（因为 import AppKit 会让 macOS 认为是 GUI 应用）
+        NSApplication.shared.setActivationPolicy(.prohibited)
+
         // Set up stderr for logging (Chrome captures stdout for messages)
         setbuf(stderr, nil)
         log("Native Messaging Host started")
