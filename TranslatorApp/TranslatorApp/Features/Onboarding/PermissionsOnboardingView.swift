@@ -239,6 +239,7 @@ final class PermissionsWindowController {
     static let shared = PermissionsWindowController()
 
     private var window: NSWindow?
+    private var windowObserver: NSObjectProtocol?
 
     private init() {}
 
@@ -303,13 +304,13 @@ final class PermissionsWindowController {
         window.level = .floating
         window.backgroundColor = .clear
 
-        // 监听窗口关闭
-        NotificationCenter.default.addObserver(
+        // 监听窗口关闭（保存 observer 以便后续移除）
+        windowObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification,
             object: window,
             queue: .main
         ) { [weak self] _ in
-            self?.window = nil
+            self?.cleanup()
         }
 
         self.window = window
@@ -326,6 +327,16 @@ final class PermissionsWindowController {
 
     func close() {
         window?.close()
+        // cleanup() 会在 willCloseNotification 中被调用
+    }
+
+    /// 清理资源
+    private func cleanup() {
+        // 移除观察者
+        if let observer = windowObserver {
+            NotificationCenter.default.removeObserver(observer)
+            windowObserver = nil
+        }
         window = nil
     }
 }
