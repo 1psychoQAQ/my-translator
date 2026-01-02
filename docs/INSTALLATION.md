@@ -69,10 +69,10 @@ Launch TranslatorApp once - it will automatically register the native messaging 
    mkdir -p ~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts
    ```
 
-2. Create the manifest file `com.translator.nativemessaginghost.json`:
+2. Create the manifest file `com.translator.app.json`:
    ```json
    {
-     "name": "com.translator.nativemessaginghost",
+     "name": "com.translator.app",
      "description": "Translator Native Messaging Host",
      "path": "/Applications/TranslatorApp.app/Contents/MacOS/NativeMessagingHost",
      "type": "stdio",
@@ -129,7 +129,7 @@ xattr -cr /Applications/TranslatorApp.app
 2. Move `/Applications/TranslatorApp.app` to Trash
 3. Remove native messaging host:
    ```bash
-   rm ~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts/com.translator.nativemessaginghost.json
+   rm ~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts/com.translator.app.json
    ```
 4. (Optional) Remove app data:
    ```bash

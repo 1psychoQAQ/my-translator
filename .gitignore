@@ -21,3 +21,4 @@ ChromeExtension/coverage/
 # Xcode
 *.xcuserstate
 xcuserdata/
+release/
