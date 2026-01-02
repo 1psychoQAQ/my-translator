@@ -14,6 +14,7 @@ import { createWebBackend } from './web-backend';
 import { createBrowserStorage } from './browser-storage';
 import type { NativeMessenger } from '../types';
 import { createNativeMessenger } from '../native-messenger';
+import { speak as webSpeak } from '../speech';
 
 const CONFIG_KEY = 'translator_config';
 
@@ -184,11 +185,8 @@ export function createBackendManager(): BackendManager {
     },
 
     async speak(text: string, language?: string): Promise<void> {
-      if (this.backend.speak) {
-        await this.backend.speak(text, language);
-      } else {
-        throw new Error('TTS not supported by current backend');
-      }
+      // 始终使用 Web Speech API，零延迟，无 Dock 图标
+      webSpeak(text, language);
     },
 
     async getConfig(): Promise<ExtensionConfig> {
