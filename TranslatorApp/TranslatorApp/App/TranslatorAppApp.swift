@@ -95,6 +95,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
+        // 注册 Native Messaging Host（供 Chrome 插件通信）
+        registerNativeMessagingHost()
+
         // Configure app state
         Task { @MainActor in
             globalAppState.configure()
@@ -107,6 +110,62 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         print("✅ TranslatorApp initialized")
+    }
+
+    /// 注册 Native Messaging Host，让 Chrome 插件能够与应用通信
+    private func registerNativeMessagingHost() {
+        let fileManager = FileManager.default
+
+        // Chrome 和 Chromium 的 NativeMessagingHosts 目录
+        let chromeDir = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Google/Chrome/NativeMessagingHosts")
+        let chromiumDir = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Chromium/NativeMessagingHosts")
+
+        // NativeMessagingHost 可执行文件路径（在 app bundle 内）
+        guard let hostPath = Bundle.main.executableURL?
+            .deletingLastPathComponent()
+            .appendingPathComponent("NativeMessagingHost").path else {
+            print("❌ Cannot find NativeMessagingHost in bundle")
+            return
+        }
+
+        // 检查 NativeMessagingHost 是否存在
+        guard fileManager.fileExists(atPath: hostPath) else {
+            print("⚠️ NativeMessagingHost not found at: \(hostPath)")
+            return
+        }
+
+        // Manifest 内容
+        let manifest: [String: Any] = [
+            "name": "com.translator.app",
+            "description": "Translator Native Messaging Host",
+            "path": hostPath,
+            "type": "stdio",
+            "allowed_origins": [
+                "chrome-extension://*/",  // 允许所有扩展（开发模式）
+            ]
+        ]
+
+        guard let manifestData = try? JSONSerialization.data(withJSONObject: manifest, options: .prettyPrinted) else {
+            print("❌ Failed to serialize manifest")
+            return
+        }
+
+        // 安装到 Chrome 和 Chromium
+        for dir in [chromeDir, chromiumDir] {
+            do {
+                // 创建目录（如果不存在）
+                try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+
+                // 写入 manifest 文件
+                let manifestPath = dir.appendingPathComponent("com.translator.app.json")
+                try manifestData.write(to: manifestPath)
+                print("✅ Native Messaging Host registered: \(manifestPath.path)")
+            } catch {
+                // 静默失败（用户可能没有安装 Chrome/Chromium）
+            }
+        }
     }
 
     @objc func updateMenuHotkeyDisplay() {
