@@ -137,14 +137,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Manifest 内容
-        // 注意：Chrome 不支持通配符，必须指定具体的扩展 ID
+        // 扩展 ID 由 manifest.json 中的 key 字段决定，所有用户安装后 ID 相同
         let manifest: [String: Any] = [
             "name": "com.translator.app",
             "description": "Translator Native Messaging Host",
             "path": hostPath,
             "type": "stdio",
             "allowed_origins": [
-                "chrome-extension://eldifccehpolndkedfkmmbegpgihfali/",  // 扩展 ID
+                "chrome-extension://bilmagikolgnahbbgeicfccnpkcidbbo/",
             ]
         ]
 
