@@ -86,17 +86,52 @@ echo "    ✓ TranslatorExtension-$VERSION.zip created"
 rm -rf "$RELEASE_DIR/build"
 rm -rf "$RELEASE_DIR/app"
 
-# ==================== 完成 ====================
-echo ""
-echo "================================================"
-echo "  Release files ready!"
-echo "================================================"
+# ==================== 上传到 GitHub ====================
 echo ""
 echo "Files in $RELEASE_DIR:"
 ls -lh "$RELEASE_DIR"
 echo ""
-echo "Upload to GitHub:"
-echo "  1. Go to: https://github.com/YOUR_USERNAME/my-translator/releases/new"
-echo "  2. Tag: v$VERSION"
-echo "  3. Upload these files"
+
+read -p "Upload to GitHub Release? (y/n) " -n 1 -r
 echo ""
+
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "[5/5] Creating GitHub Release v$VERSION..."
+
+    # 检查 gh 是否已登录
+    if ! gh auth status &>/dev/null; then
+        echo "Error: Please login to GitHub first: gh auth login"
+        exit 1
+    fi
+
+    # 创建 Release 并上传文件
+    gh release create "v$VERSION" \
+        "$RELEASE_DIR/TranslatorApp-$VERSION.dmg" \
+        "$RELEASE_DIR/TranslatorExtension-$VERSION.zip" \
+        --title "v$VERSION" \
+        --notes "## Downloads
+
+- **macOS App**: \`TranslatorApp-$VERSION.dmg\`
+- **Chrome Extension**: \`TranslatorExtension-$VERSION.zip\`
+
+## Installation
+
+### macOS App
+1. Download and open the DMG
+2. Drag TranslatorApp to Applications
+3. If blocked: \`xattr -cr /Applications/TranslatorApp.app\`
+
+### Chrome Extension
+1. Download and unzip
+2. Open \`chrome://extensions\`
+3. Enable Developer Mode
+4. Click 'Load unpacked' and select the folder"
+
+    echo ""
+    echo "================================================"
+    echo "  Released! v$VERSION"
+    echo "================================================"
+    gh release view "v$VERSION" --web
+else
+    echo "Skipped. Files are in: $RELEASE_DIR"
+fi
