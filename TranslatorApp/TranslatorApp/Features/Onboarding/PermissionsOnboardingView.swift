@@ -11,6 +11,8 @@ struct PermissionsOnboardingView: View {
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
+    @State private var needsPermissionReset = false  // 是否需要重置权限（更新后旧权限失效）
+
     /// 当前步骤：1=辅助功能，2=屏幕录制，3=完成
     private var currentStep: Int {
         if !accessibilityGranted { return 1 }
@@ -41,6 +43,23 @@ struct PermissionsOnboardingView: View {
             Divider()
                 .padding(.horizontal)
 
+            // 更新提示（如果需要重置权限）
+            if needsPermissionReset {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text("应用已更新，请先删除旧的权限条目再重新授权")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color.orange.opacity(0.1))
+                .cornerRadius(8)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+            }
+
             // 权限列表
             VStack(spacing: 0) {
                 // 第一步：辅助功能
@@ -50,7 +69,7 @@ struct PermissionsOnboardingView: View {
                     description: "用于监听全局快捷键",
                     isGranted: accessibilityGranted,
                     showButton: currentStep == 1,
-                    buttonTitle: "去授权",
+                    buttonTitle: needsPermissionReset ? "打开设置" : "去授权",
                     action: authorizeAccessibility
                 )
 
@@ -64,7 +83,7 @@ struct PermissionsOnboardingView: View {
                     description: "用于截取屏幕内容进行 OCR 识别",
                     isGranted: screenCaptureGranted,
                     showButton: currentStep == 2,
-                    buttonTitle: "去授权",
+                    buttonTitle: needsPermissionReset ? "打开设置" : "去授权",
                     action: authorizeScreenCapture
                 )
             }
@@ -123,6 +142,7 @@ struct PermissionsOnboardingView: View {
         .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
         .onAppear {
             updatePermissionStatus()
+            checkIfNeedsPermissionReset()
         }
         .onReceive(timer) { _ in
             updatePermissionStatus()
@@ -145,6 +165,26 @@ struct PermissionsOnboardingView: View {
         let manager = PermissionsManager.shared
         screenCaptureGranted = manager.hasScreenCapturePermission
         accessibilityGranted = manager.hasAccessibilityPermission
+
+        // 如果权限成功获取，记录当前版本
+        if screenCaptureGranted && accessibilityGranted {
+            let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+            UserDefaults.standard.set(currentVersion, forKey: "lastAuthorizedVersion")
+            needsPermissionReset = false
+        }
+    }
+
+    /// 检查是否需要重置权限（版本更新后旧权限可能失效）
+    private func checkIfNeedsPermissionReset() {
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let lastVersion = UserDefaults.standard.string(forKey: "lastAuthorizedVersion")
+
+        // 如果之前授权过（有记录），但当前版本不同且没有权限，可能需要重置
+        if let lastVersion = lastVersion,
+           lastVersion != currentVersion,
+           (!screenCaptureGranted || !accessibilityGranted) {
+            needsPermissionReset = true
+        }
     }
 
     /// 授权辅助功能
