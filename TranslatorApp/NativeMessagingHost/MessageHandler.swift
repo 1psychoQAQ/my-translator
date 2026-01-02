@@ -1,7 +1,6 @@
 import Foundation
 import SwiftData
 import Translation
-import AVFoundation
 
 // MARK: - Message Handler
 
@@ -103,59 +102,40 @@ final class MessageHandler: Sendable {
 // MARK: - Host Speech Service
 
 @MainActor
-final class HostSpeechService: NSObject, AVSpeechSynthesizerDelegate {
-    private let synthesizer = AVSpeechSynthesizer()
-    private var speakContinuation: CheckedContinuation<Void, Never>?
-
-    override init() {
-        super.init()
-        synthesizer.delegate = self
-    }
+final class HostSpeechService {
 
     func speak(text: String, language: String) async {
-        synthesizer.stopSpeaking(at: .immediate)
+        // 使用系统 say 命令，在 CLI 环境下更可靠
+        // say 命令会阻塞直到朗读完成
+        let voice = voiceForLanguage(language)
 
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = AVSpeechSynthesisVoice(language: language)
-        // 稍微降低语速，提高清晰度
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+        task.arguments = ["-v", voice, text]
 
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            self.speakContinuation = continuation
-            synthesizer.speak(utterance)
-
-            // 运行 RunLoop 以允许音频播放
-            // 设置超时防止无限等待
-            let timeout = Date().addingTimeInterval(Double(text.count) * 0.15 + 2.0)
-            while self.speakContinuation != nil && Date() < timeout {
-                RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.1))
-            }
-
-            // 如果超时了，手动完成 continuation
-            if let pending = self.speakContinuation {
-                self.speakContinuation = nil
-                pending.resume()
-            }
+        do {
+            try task.run()
+            task.waitUntilExit()
+        } catch {
+            // 静默失败，say 命令出错时不影响主流程
         }
     }
 
-    // MARK: - AVSpeechSynthesizerDelegate
-
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor in
-            if let continuation = self.speakContinuation {
-                self.speakContinuation = nil
-                continuation.resume()
-            }
-        }
-    }
-
-    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in
-            if let continuation = self.speakContinuation {
-                self.speakContinuation = nil
-                continuation.resume()
-            }
+    private func voiceForLanguage(_ language: String) -> String {
+        // 根据语言代码选择合适的系统语音
+        switch language.lowercased() {
+        case "zh-cn", "zh-hans", "zh":
+            return "Tingting"  // 中文女声
+        case "zh-tw", "zh-hant":
+            return "Meijia"    // 台湾中文
+        case "ja", "ja-jp":
+            return "Kyoko"     // 日语
+        case "ko", "ko-kr":
+            return "Yuna"      // 韩语
+        case "en-gb":
+            return "Daniel"    // 英式英语
+        default:
+            return "Samantha"  // 美式英语（默认）
         }
     }
 }
