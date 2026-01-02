@@ -10,9 +10,39 @@ final class PermissionsManager {
 
     // MARK: - 屏幕录制权限（用于截图翻译）
 
+    /// 缓存的屏幕录制权限状态
+    private var cachedScreenCapturePermission: Bool?
+
     /// 检查是否有屏幕录制权限
     var hasScreenCapturePermission: Bool {
-        CGPreflightScreenCaptureAccess()
+        // 优先使用缓存（避免重复检测）
+        if let cached = cachedScreenCapturePermission {
+            return cached
+        }
+
+        // CGPreflightScreenCaptureAccess 可能不准确，但作为快速检查
+        let preflight = CGPreflightScreenCaptureAccess()
+        if preflight {
+            cachedScreenCapturePermission = true
+            return true
+        }
+
+        // 如果 preflight 返回 false，不一定没权限
+        // 返回 false 让引导界面显示，但不会强制重新授权
+        return false
+    }
+
+    /// 异步检查屏幕录制权限（更准确）
+    func checkScreenCapturePermissionAsync() async -> Bool {
+        do {
+            // 尝试获取可共享内容，如果成功说明有权限
+            _ = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            cachedScreenCapturePermission = true
+            return true
+        } catch {
+            cachedScreenCapturePermission = false
+            return false
+        }
     }
 
     /// 请求屏幕录制权限

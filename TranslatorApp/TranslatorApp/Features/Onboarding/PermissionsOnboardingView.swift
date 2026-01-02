@@ -246,19 +246,32 @@ final class PermissionsWindowController {
     func showIfNeeded() {
         let manager = PermissionsManager.shared
 
-        // 如果所有权限都已授予，不显示
+        // 先用同步方法快速检查
         if manager.hasScreenCapturePermission && manager.hasAccessibilityPermission {
             print("✅ 所有权限已授予，跳过引导")
             return
         }
 
-        // 检查是否已经显示过（本次启动只显示一次）
-        if window != nil {
-            window?.makeKeyAndOrderFront(nil)
-            return
-        }
+        // 异步更准确地检测屏幕录制权限
+        Task {
+            let hasScreenCapture = await manager.checkScreenCapturePermissionAsync()
+            let hasAccessibility = manager.hasAccessibilityPermission
 
-        show()
+            await MainActor.run {
+                if hasScreenCapture && hasAccessibility {
+                    print("✅ 所有权限已授予（异步检测），跳过引导")
+                    return
+                }
+
+                // 检查是否已经显示过
+                if self.window != nil {
+                    self.window?.makeKeyAndOrderFront(nil)
+                    return
+                }
+
+                self.show()
+            }
+        }
     }
 
     /// 强制显示权限引导窗口
