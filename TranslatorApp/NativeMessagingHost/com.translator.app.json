@@ -1,5 +1,5 @@
 {
-  "name": "com.liujiahao.translator",
+  "name": "com.translator.app",
   "description": "Native Messaging Host for Translator App",
   "path": "/Applications/TranslatorApp.app/Contents/MacOS/NativeMessagingHost",
   "type": "stdio",

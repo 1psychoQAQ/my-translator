@@ -138,7 +138,7 @@ Close and reopen Chrome for the changes to take effect.
 ### Check if host is registered
 
 ```bash
-cat ~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts/com.liujiahao.translator.json
+cat ~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts/com.translator.app.json
 ```
 
 ### Test the host manually
@@ -165,5 +165,5 @@ sys.stdout.buffer.write(struct.pack('<I', len(msg)) + msg)
 - `MessageHandler.swift` - Routes messages to appropriate handlers
 - `HostTranslationService.swift` - Translation using Apple Translation Framework
 - `HostWordBookService.swift` - Word storage using SwiftData
-- `com.liujiahao.translator.json` - Native Messaging manifest template
+- `com.translator.app.json` - Native Messaging manifest template
 - `install-native-host.sh` - Installation script

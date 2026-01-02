@@ -28,7 +28,7 @@ describe('NativeMessenger', () => {
 
       expect(response).toEqual(expectedResponse);
       expect(mockChrome.runtime.sendNativeMessage).toHaveBeenCalledWith(
-        'com.liujiahao.translator',
+        'com.translator.app',
         { action: 'translate', payload: { text: 'Hello' } },
         expect.any(Function)
       );

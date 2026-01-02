@@ -1,7 +1,7 @@
 import type { NativeMessenger, NativeMessage, PingResponse } from './types';
 import { createError, ErrorCode } from './errors';
 
-const NATIVE_HOST_NAME = 'com.liujiahao.translator';
+const NATIVE_HOST_NAME = 'com.translator.app';
 const REQUEST_TIMEOUT = 30000; // 30 seconds
 
 // Check if we're in a context where sendNativeMessage is available (background script)

@@ -10,7 +10,7 @@
 set -e
 
 # Configuration
-HOST_NAME="com.liujiahao.translator"
+HOST_NAME="com.translator.app"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Host executable path (from build directory)

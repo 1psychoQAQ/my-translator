@@ -103,20 +103,57 @@ final class MessageHandler: Sendable {
 // MARK: - Host Speech Service
 
 @MainActor
-final class HostSpeechService {
+final class HostSpeechService: NSObject, AVSpeechSynthesizerDelegate {
     private let synthesizer = AVSpeechSynthesizer()
+    private var speakContinuation: CheckedContinuation<Void, Never>?
+
+    override init() {
+        super.init()
+        synthesizer.delegate = self
+    }
 
     func speak(text: String, language: String) async {
         synthesizer.stopSpeaking(at: .immediate)
 
         let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: language)
+        // 稍微降低语速，提高清晰度
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.9
 
-        synthesizer.speak(utterance)
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            self.speakContinuation = continuation
+            synthesizer.speak(utterance)
 
-        // 等待朗读完成
-        await withCheckedContinuation { continuation in
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(text.count) * 0.08 + 0.5) {
+            // 运行 RunLoop 以允许音频播放
+            // 设置超时防止无限等待
+            let timeout = Date().addingTimeInterval(Double(text.count) * 0.15 + 2.0)
+            while self.speakContinuation != nil && Date() < timeout {
+                RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.1))
+            }
+
+            // 如果超时了，手动完成 continuation
+            if let pending = self.speakContinuation {
+                self.speakContinuation = nil
+                pending.resume()
+            }
+        }
+    }
+
+    // MARK: - AVSpeechSynthesizerDelegate
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            if let continuation = self.speakContinuation {
+                self.speakContinuation = nil
+                continuation.resume()
+            }
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            if let continuation = self.speakContinuation {
+                self.speakContinuation = nil
                 continuation.resume()
             }
         }

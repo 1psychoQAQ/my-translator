@@ -213,7 +213,7 @@ SwiftData (~/Library/Application Support/com.translator.app/default.store)
    - SwiftData 通过类名匹配 schema
 
 4. **Native Messaging Manifest**:
-   - 位置：`~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.liujiahao.translatorapp.json`
+   - 位置：`~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.translator.app.json`
    - 指向：`NativeMessagingHost/.build/debug/NativeMessagingHost`
 
 ### 已完成功能

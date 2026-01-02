@@ -16,7 +16,7 @@ let package = Package(
             exclude: [
                 "Package.swift",
                 "install-native-host.sh",
-                "com.liujiahao.translator.json",
+                "com.translator.app.json",
                 "README.md"
             ],
             sources: [
