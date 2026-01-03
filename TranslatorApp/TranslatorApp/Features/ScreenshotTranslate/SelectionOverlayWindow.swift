@@ -574,223 +574,39 @@ private struct FloatingActionButton: View {
     }
 }
 
-/// 毛玻璃背景
-private struct FloatingBarBackground: View {
-    var body: some View {
-        RoundedRectangle(cornerRadius: 10)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 2)
-    }
-}
+/// 毛玻璃背景 - 使用共享组件的别名
+private typealias FloatingBarBackground = FloatingPanelBackground
 
+/// 截图翻译加载视图 - 使用共享组件
 private struct LoadingView: View {
     var body: some View {
-        HStack(spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.7)
-                .colorInvert()
-            Text("识别中...")
-                .font(.system(size: 12))
-                .foregroundColor(.white)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(FloatingBarBackground())
+        TranslationLoadingView()
     }
 }
 
+/// 截图翻译结果视图 - 使用共享组件
 private struct OverlayResultView: View {
     let original: String
     let translated: String
     let onSave: () -> Void
     let onCancel: () -> Void
 
-    @State private var showCopiedOriginal = false
-    @State private var showCopiedTranslation = false
-
-    // 保持 synthesizer 引用，避免被释放导致发音中断
-    private static let speechSynthesizer = AVSpeechSynthesizer()
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // 原文
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text("原文")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
-                    Spacer()
-                    // 复制原文按钮
-                    Button(action: copyOriginal) {
-                        Image(systemName: showCopiedOriginal ? "checkmark" : "doc.on.doc")
-                            .font(.system(size: 10, weight: showCopiedOriginal ? .semibold : .regular))
-                            .foregroundColor(.white.opacity(showCopiedOriginal ? 0.9 : 0.5))
-                            .frame(width: 16, height: 16)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .animation(.easeInOut(duration: 0.15), value: showCopiedOriginal)
-                    // 朗读原文按钮
-                    Button(action: speakOriginal) {
-                        Image(systemName: "speaker.wave.2")
-                            .font(.system(size: 10))
-                            .foregroundColor(.white.opacity(0.5))
-                            .frame(width: 16, height: 16)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                ScrollView {
-                    Text(original)
-                        .font(.system(size: 12))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                }
-                .frame(maxHeight: 40)
-            }
-
-            Divider()
-                .background(Color.white.opacity(0.2))
-
-            // 译文
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text("译文")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
-                    Spacer()
-                    // 复制译文按钮
-                    Button(action: copyTranslation) {
-                        Image(systemName: showCopiedTranslation ? "checkmark" : "doc.on.doc")
-                            .font(.system(size: 10, weight: showCopiedTranslation ? .semibold : .regular))
-                            .foregroundColor(.white.opacity(showCopiedTranslation ? 0.9 : 0.5))
-                            .frame(width: 16, height: 16)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .animation(.easeInOut(duration: 0.15), value: showCopiedTranslation)
-                }
-                ScrollView {
-                    Text(translated)
-                        .font(.system(size: 12))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .textSelection(.enabled)
-                }
-                .frame(maxHeight: 40)
-            }
-
-            // 操作按钮
-            HStack(spacing: 8) {
-                Button(action: onSave) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "bookmark")
-                            .font(.system(size: 11))
-                        Text("收藏")
-                            .font(.system(size: 11))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.blue)
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button(action: onCancel) {
-                    Text("关闭")
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.8))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.white.opacity(0.15))
-                        )
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
-
-                Text("ESC")
-                    .font(.system(size: 10))
-                    .foregroundColor(.white.opacity(0.4))
-            }
-        }
-        .padding(10)
-        .background(FloatingBarBackground())
-    }
-
-    private func copyOriginal() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(original, forType: .string)
-        showCopiedOriginal = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            showCopiedOriginal = false
-        }
-    }
-
-    private func copyTranslation() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(translated, forType: .string)
-        showCopiedTranslation = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            showCopiedTranslation = false
-        }
-    }
-
-    private func speakOriginal() {
-        // 如果正在朗读，先停止
-        if Self.speechSynthesizer.isSpeaking {
-            Self.speechSynthesizer.stopSpeaking(at: .immediate)
-        }
-
-        let utterance = AVSpeechUtterance(string: original)
-        // 根据文本内容自动选择语音
-        if original.range(of: "\\p{Han}", options: .regularExpression) != nil {
-            // 包含中文，使用中文语音
-            utterance.voice = AVSpeechSynthesisVoice(language: "zh-CN")
-        } else {
-            // 默认使用英文语音
-            utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
-        }
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
-
-        Self.speechSynthesizer.speak(utterance)
+        TranslationResultView(
+            original: original,
+            translated: translated,
+            onSave: onSave,
+            onClose: onCancel
+        )
     }
 }
 
+/// 截图翻译错误视图 - 使用共享组件
 private struct ErrorView: View {
     let message: String
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 14))
-                .foregroundColor(.orange)
-
-            Text(message)
-                .font(.system(size: 12))
-                .foregroundColor(.white)
-                .lineLimit(2)
-
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.7))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(FloatingBarBackground())
+        TranslationErrorView(message: message, onDismiss: onDismiss)
     }
 }

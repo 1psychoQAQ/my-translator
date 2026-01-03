@@ -38,7 +38,7 @@ rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
 
 # ==================== macOS App ====================
-echo "[1/5] Building macOS App..."
+echo "[1/3] Building macOS App..."
 
 cd "$PROJECT_ROOT/TranslatorApp"
 
@@ -54,17 +54,8 @@ xcodebuild -project TranslatorApp.xcodeproj \
 
 echo "    ✓ TranslatorApp.app"
 
-# ==================== Native Messaging Host ====================
-echo "[2/5] Building Native Messaging Host..."
-
-cd "$PROJECT_ROOT/TranslatorApp/NativeMessagingHost"
-swift build -c release --quiet
-
-cp .build/release/NativeMessagingHost "$RELEASE_DIR/app/TranslatorApp.app/Contents/MacOS/"
-echo "    ✓ NativeMessagingHost"
-
 # ==================== 创建 DMG ====================
-echo "[3/5] Creating DMG..."
+echo "[2/3] Creating DMG..."
 
 DMG_NAME="TranslatorApp-$VERSION.dmg"
 TEMP_DIR=$(mktemp -d)
@@ -82,38 +73,33 @@ hdiutil create -volname "TranslatorApp" \
 rm -rf "$TEMP_DIR"
 echo "    ✓ $DMG_NAME"
 
-# ==================== Chrome Extension ====================
-echo "[4/5] Building Chrome Extension..."
-
-cd "$PROJECT_ROOT/ChromeExtension"
-npm run build --silent
-
-cd dist
-zip -rq "$RELEASE_DIR/TranslatorExtension-$VERSION.zip" .
-echo "    ✓ TranslatorExtension-$VERSION.zip"
-
 # ==================== 清理临时文件 ====================
 rm -rf "$RELEASE_DIR/build"
 rm -rf "$RELEASE_DIR/app"
 
 # ==================== 上传到 GitHub ====================
-echo "[5/5] Uploading to GitHub..."
+echo "[3/3] Uploading to GitHub..."
 
 cd "$PROJECT_ROOT"
 
 # 创建 Release 并上传文件
 gh release create "v$VERSION" \
     "$RELEASE_DIR/$DMG_NAME" \
-    "$RELEASE_DIR/TranslatorExtension-$VERSION.zip" \
     --title "v$VERSION" \
     --notes "## Downloads
 
 - **macOS App**: \`$DMG_NAME\` - 拖入 Applications 安装
-- **Chrome Extension**: \`TranslatorExtension-$VERSION.zip\` - 在 chrome://extensions 开发者模式加载
 
-## Installation
+## Features
 
-See [INSTALLATION.md](docs/INSTALLATION.md) for detailed instructions."
+- 截图翻译：快捷键截取屏幕区域，OCR 识别并翻译
+- 划词翻译：选中任意应用中的文本，自动弹出翻译
+- 单词本：收藏和管理翻译过的单词
+
+## Requirements
+
+- macOS 15.0+
+- 需要授予屏幕录制和辅助功能权限"
 
 echo ""
 echo "================================================"

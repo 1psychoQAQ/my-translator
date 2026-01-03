@@ -20,7 +20,7 @@ final class AppState: ObservableObject {
         // Initialize SwiftData - this is thread-safe
         let schema = Schema([Word.self])
 
-        // Use explicit path to share data with NativeMessagingHost
+        // Use explicit path for data storage
         let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
         let bundleID = "com.translator.app"
         let storeURL = appSupportURL
@@ -80,16 +80,27 @@ final class AppState: ObservableObject {
         let settings = HotkeySettings.shared
         print("🔑 Setting up global hotkey (\(settings.displayString)) with Carbon API...")
 
-        // 安装事件处理器
+        // 安装事件处理器（处理所有快捷键）
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
 
         let status = InstallEventHandler(
             GetApplicationEventTarget(),
             { (nextHandler, theEvent, userData) -> OSStatus in
-                print("🎯 Hotkey triggered!")
+                // 获取快捷键 ID
+                var hotkeyID = EventHotKeyID()
+                GetEventParameter(theEvent, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &hotkeyID)
+
                 DispatchQueue.main.async {
-                    Task { @MainActor in
-                        await AppState.shared?.screenshotTranslateViewModel.startScreenshotTranslation()
+                    if hotkeyID.id == 1 {
+                        // 截图翻译快捷键
+                        print("🎯 Screenshot hotkey triggered!")
+                        Task { @MainActor in
+                            await AppState.shared?.screenshotTranslateViewModel.startScreenshotTranslation()
+                        }
+                    } else if hotkeyID.id == 2 {
+                        // 划词翻译快捷键
+                        print("🎯 Translation hotkey triggered!")
+                        AppDelegate.triggerTranslation()
                     }
                 }
                 return noErr

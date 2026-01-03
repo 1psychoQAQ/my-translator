@@ -6,6 +6,7 @@ final class ScreenshotService: ScreenshotServiceProtocol {
 
     private var currentSelectionWindow: SelectionOverlayWindow?
     private var isCapturing = false
+    private var hiddenWindows: [NSWindow] = []  // 记录被隐藏的窗口
 
     /// 显示选区窗口，返回用户的操作
     /// - Parameter onTranslate: 翻译回调，接收选区坐标，返回原文和译文
@@ -25,8 +26,8 @@ final class ScreenshotService: ScreenshotServiceProtocol {
             currentSelectionWindow = nil
         }
 
-        // 隐藏所有其他应用窗口（避免遮挡截图选区）
-        hideOtherWindows()
+        // 隐藏本应用的其他窗口（避免遮挡截图选区），并记录下来
+        hideAppWindows()
 
         // 先截取全屏作为固定背景
         let frozenImage = await captureFullScreen()
@@ -36,10 +37,14 @@ final class ScreenshotService: ScreenshotServiceProtocol {
                 frozenScreenImage: frozenImage,
                 onTranslate: onTranslate,
                 completion: { [weak self] action in
-                    self?.currentSelectionWindow = nil
-                    self?.isCapturing = false
-                    // 不自动恢复窗口，保持截图前的状态
-                    continuation.resume(returning: action)
+                    // 确保在主线程执行
+                    DispatchQueue.main.async {
+                        self?.currentSelectionWindow = nil
+                        self?.isCapturing = false
+                        // 恢复被隐藏的窗口
+                        self?.restoreAppWindows()
+                        continuation.resume(returning: action)
+                    }
                 }
             )
             self.currentSelectionWindow = window
@@ -77,8 +82,10 @@ final class ScreenshotService: ScreenshotServiceProtocol {
         }
     }
 
-    /// 隐藏所有其他应用窗口（截图时避免遮挡）
-    private func hideOtherWindows() {
+    /// 隐藏本应用的窗口（截图时避免遮挡）
+    private func hideAppWindows() {
+        hiddenWindows.removeAll()
+
         for window in NSApplication.shared.windows {
             // 跳过截图选区窗口本身
             if window === currentSelectionWindow { continue }
@@ -86,9 +93,25 @@ final class ScreenshotService: ScreenshotServiceProtocol {
             if !window.isVisible { continue }
             // 跳过状态栏菜单等系统窗口
             if window.level.rawValue < 0 { continue }
+            // 跳过翻译辅助窗口（位于屏幕外的隐藏窗口）
+            if window.frame.origin.x < -1000 { continue }
 
+            // 记录并隐藏
+            print("📦 隐藏窗口: \(window.title)")
+            hiddenWindows.append(window)
             window.orderOut(nil)
         }
+        print("📦 共隐藏 \(hiddenWindows.count) 个窗口")
+    }
+
+    /// 恢复被隐藏的窗口
+    private func restoreAppWindows() {
+        print("📦 恢复 \(hiddenWindows.count) 个窗口")
+        for window in hiddenWindows {
+            print("📦 恢复窗口: \(window.title)")
+            window.makeKeyAndOrderFront(nil)
+        }
+        hiddenWindows.removeAll()
     }
 
     /// 根据选区截图

@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import AppKit
+import Carbon.HIToolbox
 
 // Global app state - initialized once
 let globalAppState: AppState = {
@@ -23,6 +24,7 @@ struct TranslatorAppApp: App {
         }
         .defaultSize(width: 500, height: 600)
         .defaultPosition(.center)
+        .defaultLaunchBehavior(.presented)  // 启动时自动打开
 
         Settings {
             SettingsView()
@@ -30,15 +32,44 @@ struct TranslatorAppApp: App {
     }
 }
 
-// MARK: - 单词本窗口内容（支持通过通知打开）
+/// 存储 openWindow action 的辅助类
+@MainActor
+final class OpenWindowHelper {
+    static let shared = OpenWindowHelper()
+    var openWindow: OpenWindowAction?
+    private var isOpening = false
+
+    private init() {}
+
+    func openWordBook() {
+        // 防止重复打开
+        guard !isOpening else {
+            print("📬 OpenWindowHelper: 正在打开中，跳过")
+            return
+        }
+
+        isOpening = true
+        print("📬 OpenWindowHelper.openWordBook() called, hasAction=\(openWindow != nil)")
+        openWindow?(id: "wordbook")
+
+        // 延迟重置标记
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.isOpening = false
+        }
+    }
+}
+
+// MARK: - 单词本窗口内容
 struct WordBookWindowContent: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         WordBookView(viewModel: globalAppState.createWordBookViewModel())
             .modelContainer(globalAppState.modelContainer)
-            .onReceive(NotificationCenter.default.publisher(for: .openWordBook)) { _ in
-                openWindow(id: "wordbook")
+            .onAppear {
+                // 存储 openWindow action 到全局管理器
+                OpenWindowHelper.shared.openWindow = openWindow
+                print("✅ OpenWindowHelper.openWindow 已存储")
             }
     }
 }
@@ -79,6 +110,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         )
         screenshotItem.tag = 1  // 用于后续更新
         menu.addItem(screenshotItem)
+        menu.addItem(NSMenuItem(title: "翻译选中文本 (⌥T)", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "打开单词本", action: #selector(openWordBook), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
@@ -95,8 +127,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil
         )
 
-        // 注册 Native Messaging Host（供 Chrome 插件通信）
-        registerNativeMessagingHost()
+        // 设置翻译快捷键 ⌥T（选中文本后按快捷键翻译）
+        setupTranslationHotkey()
 
         // Configure app state
         Task { @MainActor in
@@ -107,66 +139,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 PermissionsWindowController.shared.showIfNeeded()
             }
+
+            // 启动时打开单词本窗口
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.openWordBook()
+            }
         }
 
         print("✅ TranslatorApp initialized")
-    }
-
-    /// 注册 Native Messaging Host，让 Chrome 插件能够与应用通信
-    private func registerNativeMessagingHost() {
-        let fileManager = FileManager.default
-
-        // Chrome 和 Chromium 的 NativeMessagingHosts 目录
-        let chromeDir = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Google/Chrome/NativeMessagingHosts")
-        let chromiumDir = fileManager.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Chromium/NativeMessagingHosts")
-
-        // NativeMessagingHost 可执行文件路径（在 app bundle 内）
-        guard let hostPath = Bundle.main.executableURL?
-            .deletingLastPathComponent()
-            .appendingPathComponent("NativeMessagingHost").path else {
-            print("❌ Cannot find NativeMessagingHost in bundle")
-            return
-        }
-
-        // 检查 NativeMessagingHost 是否存在
-        guard fileManager.fileExists(atPath: hostPath) else {
-            print("⚠️ NativeMessagingHost not found at: \(hostPath)")
-            return
-        }
-
-        // Manifest 内容
-        // 扩展 ID 由 manifest.json 中的 key 字段决定，所有用户安装后 ID 相同
-        let manifest: [String: Any] = [
-            "name": "com.translator.app",
-            "description": "Translator Native Messaging Host",
-            "path": hostPath,
-            "type": "stdio",
-            "allowed_origins": [
-                "chrome-extension://bilmagikolgnahbbgeicfccnpkcidbbo/",
-            ]
-        ]
-
-        guard let manifestData = try? JSONSerialization.data(withJSONObject: manifest, options: .prettyPrinted) else {
-            print("❌ Failed to serialize manifest")
-            return
-        }
-
-        // 安装到 Chrome 和 Chromium
-        for dir in [chromeDir, chromiumDir] {
-            do {
-                // 创建目录（如果不存在）
-                try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-
-                // 写入 manifest 文件
-                let manifestPath = dir.appendingPathComponent("com.translator.app.json")
-                try manifestData.write(to: manifestPath)
-                print("✅ Native Messaging Host registered: \(manifestPath.path)")
-            } catch {
-                print("⚠️ Failed to register Native Messaging Host at \(dir.path): \(error)")
-            }
-        }
     }
 
     @objc func updateMenuHotkeyDisplay() {
@@ -182,7 +162,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private var isOpeningWordBook = false
+
     @objc func openWordBook() {
+        // 防止重复打开
+        guard !isOpeningWordBook else {
+            print("🔍 正在打开单词本，跳过")
+            return
+        }
+        isOpeningWordBook = true
+
+        // 延迟重置标记
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.isOpeningWordBook = false
+        }
+
         // 先激活应用
         NSApplication.shared.activate(ignoringOtherApps: true)
 
@@ -190,13 +184,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         for window in NSApplication.shared.windows {
             if window.title == "单词本" ||
                window.identifier?.rawValue.contains("wordbook") == true {
+                // 确保窗口可见并置于最前
+                print("✅ 找到单词本窗口，显示它")
+                window.orderFront(nil)
                 window.makeKeyAndOrderFront(nil)
                 return
             }
         }
 
-        // 窗口不存在时，发送通知让 SwiftUI 打开
-        NotificationCenter.default.post(name: .openWordBook, object: nil)
+        // 窗口不存在时，使用 OpenWindowHelper 打开
+        print("⚠️ 未找到单词本窗口，使用 OpenWindowHelper 打开")
+        Task { @MainActor in
+            OpenWindowHelper.shared.openWordBook()
+        }
     }
 
     @objc func quitApp() {
@@ -209,6 +209,102 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: - 翻译快捷键 ⌥T
+
+    private var translationHotkeyRef: EventHotKeyRef?
+
+    /// 设置翻译快捷键
+    private func setupTranslationHotkey() {
+        // 注册 ⌥T 快捷键 (Option + T)
+        // T 的 keyCode 是 17, Option 修饰符是 optionKey (0x0800)
+        let hotkeyID = EventHotKeyID(signature: OSType(0x54524E53), id: 2)  // "TRNS"
+        let status = RegisterEventHotKey(
+            UInt32(17),  // T
+            UInt32(optionKey),  // Option (0x0800)
+            hotkeyID,
+            GetApplicationEventTarget(),
+            0,
+            &translationHotkeyRef
+        )
+
+        if status == noErr {
+            print("✅ 翻译快捷键 ⌥T 已注册")
+        } else {
+            print("❌ 翻译快捷键注册失败: \(status)")
+        }
+    }
+
+    /// 触发翻译（从剪贴板或模拟复制）
+    static func triggerTranslation() {
+        print("🔄 triggerTranslation called")
+
+        // 检查辅助功能权限（模拟键盘需要）
+        let trusted = AXIsProcessTrusted()
+        print("🔐 Accessibility trusted: \(trusted)")
+
+        if !trusted {
+            print("⚠️ 需要辅助功能权限才能在其他应用中复制文本")
+            // 提示用户授权
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+            AXIsProcessTrustedWithOptions(options as CFDictionary)
+            return
+        }
+
+        // 先模拟 Cmd+C 复制选中文本
+        simulateCopy()
+
+        // 等待剪贴板更新
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            guard let text = NSPasteboard.general.string(forType: .string),
+                  !text.isEmpty else {
+                print("❌ 剪贴板为空或获取失败")
+                return
+            }
+
+            let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            print("📋 剪贴板文本: \(trimmedText.prefix(50))...")
+
+            guard !trimmedText.isEmpty, trimmedText.count <= 500 else {
+                print("❌ 文本为空或超过500字符")
+                return
+            }
+
+            // 获取鼠标位置
+            let mouseLocation = NSEvent.mouseLocation
+            print("📍 鼠标位置: \(mouseLocation)")
+
+            // 显示翻译弹窗
+            print("🪟 显示翻译弹窗...")
+            TranslationPopupController.shared.show(text: trimmedText, at: mouseLocation) { text, translation in
+                print("💾 保存到单词本: \(text) -> \(translation)")
+                Task { @MainActor in
+                    let word = Word(
+                        text: text,
+                        translation: translation,
+                        source: "selection"
+                    )
+                    try? globalAppState.wordBookManager.save(word)
+                    print("✅ 已保存到单词本")
+                }
+            }
+        }
+    }
+
+    /// 模拟 Cmd+C
+    private static func simulateCopy() {
+        let source = CGEventSource(stateID: .hidSystemState)
+
+        // Key down: Cmd + C
+        let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x08, keyDown: true)  // C key
+        keyDown?.flags = .maskCommand
+        keyDown?.post(tap: .cghidEventTap)
+
+        // Key up
+        let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x08, keyDown: false)
+        keyUp?.flags = .maskCommand
+        keyUp?.post(tap: .cghidEventTap)
+    }
+
     // CRITICAL: Prevent app from quitting when all windows are closed
     // This is essential for menu bar / status bar apps
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -217,9 +313,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // Handle Dock icon click
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        // Don't do anything special when Dock icon is clicked
-        // Just return true to allow default behavior
-        return true
+        // 打开单词本
+        openWordBook()
+        // 返回 false 阻止 SwiftUI 默认行为（否则会打开两个窗口）
+        return false
     }
 }
 

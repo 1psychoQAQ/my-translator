@@ -10,7 +10,7 @@ Translator is a privacy-first translation extension. We do not collect, store, o
 
 ### What We Collect
 
-**Nothing.** We do not collect any personal information.
+**Nothing.** We 了do not collect any personal information.
 
 ### What Stays on Your Device
 

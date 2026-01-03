@@ -23,6 +23,8 @@
 		E10000010000000000000015 /* PermissionsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000015 /* PermissionsManager.swift */; };
 		E10000010000000000000016 /* PermissionsOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000016 /* PermissionsOnboardingView.swift */; };
 		E10000010000000000000017 /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000017 /* ImportExportService.swift */; };
+		E10000010000000000000021 /* TranslationPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000021 /* TranslationPopupView.swift */; };
+		E10000010000000000000022 /* TranslationResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000022 /* TranslationResultView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,6 +63,8 @@
 		E10000020000000000000015 /* PermissionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManager.swift; sourceTree = "<group>"; };
 		E10000020000000000000016 /* PermissionsOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsOnboardingView.swift; sourceTree = "<group>"; };
 		E10000020000000000000017 /* ImportExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportExportService.swift; sourceTree = "<group>"; };
+		E10000020000000000000021 /* TranslationPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationPopupView.swift; sourceTree = "<group>"; };
+		E10000020000000000000022 /* TranslationResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationResultView.swift; sourceTree = "<group>"; };
 		E10000030000000000000001 /* TranslatorApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TranslatorApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E10000040000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E10000040000000000000002 /* TranslatorApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TranslatorApp.entitlements; sourceTree = "<group>"; };
@@ -162,9 +166,27 @@
 			children = (
 				E10000060000000000000013 /* Onboarding */,
 				E10000060000000000000008 /* ScreenshotTranslate */,
+				E10000060000000000000015 /* Shared */,
+				E10000060000000000000014 /* TextSelection */,
 				E10000060000000000000012 /* WordBook */,
 			);
 			path = Features;
+			sourceTree = "<group>";
+		};
+		E10000060000000000000015 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				E10000020000000000000022 /* TranslationResultView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		E10000060000000000000014 /* TextSelection */ = {
+			isa = PBXGroup;
+			children = (
+				E10000020000000000000021 /* TranslationPopupView.swift */,
+			);
+			path = TextSelection;
 			sourceTree = "<group>";
 		};
 		E10000060000000000000013 /* Onboarding */ = {
@@ -385,6 +407,8 @@
 				E10000010000000000000015 /* PermissionsManager.swift in Sources */,
 				E10000010000000000000016 /* PermissionsOnboardingView.swift in Sources */,
 				E10000010000000000000017 /* ImportExportService.swift in Sources */,
+				E10000010000000000000021 /* TranslationPopupView.swift in Sources */,
+				E10000010000000000000022 /* TranslationResultView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
