@@ -159,15 +159,28 @@ final class SelectionOverlayWindow: NSPanel {
                 let image = try await self?.captureRegion(rect)
 
                 if let image = image {
-                    // 复制到剪贴板
+                    // 保存到临时文件
+                    let tempURL = Self.saveImageToTemp(image)
+
+                    // 复制到剪贴板（同时写入图片和文件路径）
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
 
                     // 将 CGImage 转换为 NSImage
                     let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
-                    pasteboard.writeObjects([nsImage])
 
-                    print("✅ 截图已复制到剪贴板")
+                    if let tempURL = tempURL {
+                        // 同时写入图片和文件 URL
+                        // 支持图片的应用会粘贴图片，终端等会粘贴文件路径
+                        pasteboard.writeObjects([nsImage, tempURL as NSURL])
+                        // 额外写入纯文本路径，确保终端能粘贴
+                        pasteboard.setString(tempURL.path, forType: .string)
+                        print("✅ 截图已复制到剪贴板（图片 + 路径: \(tempURL.path)）")
+                    } else {
+                        // 保存失败，只写入图片
+                        pasteboard.writeObjects([nsImage])
+                        print("✅ 截图已复制到剪贴板（仅图片）")
+                    }
                 }
             } catch {
                 print("❌ 复制截图失败: \(error.localizedDescription)")
@@ -176,6 +189,26 @@ final class SelectionOverlayWindow: NSPanel {
             await MainActor.run { [weak self] in
                 self?.finishWith(.copied)
             }
+        }
+    }
+
+    /// 保存图片到临时目录
+    private static func saveImageToTemp(_ cgImage: CGImage) -> URL? {
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = "screenshot_\(Int(Date().timeIntervalSince1970)).png"
+        let fileURL = tempDir.appendingPathComponent(fileName)
+
+        let bitmapRep = NSBitmapImageRep(cgImage: cgImage)
+        guard let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
+            return nil
+        }
+
+        do {
+            try pngData.write(to: fileURL)
+            return fileURL
+        } catch {
+            print("❌ 保存临时图片失败: \(error.localizedDescription)")
+            return nil
         }
     }
 
