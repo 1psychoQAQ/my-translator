@@ -287,11 +287,19 @@ final class PermissionsWindowController {
 
     private var window: NSWindow?
     private var windowObserver: NSObjectProtocol?
+    private var isChecking = false  // 防止重复检测
 
     private init() {}
 
     /// 显示权限引导窗口（如果有未授权的权限）
     func showIfNeeded() {
+        // 防止重复调用
+        guard !isChecking && window == nil else {
+            print("⏭️ 权限检测已在进行中或窗口已存在，跳过")
+            return
+        }
+        isChecking = true
+
         let manager = PermissionsManager.shared
 
         // 直接用异步方法准确检测，不依赖可能不准确的同步方法
@@ -300,6 +308,8 @@ final class PermissionsWindowController {
             let hasAccessibility = manager.hasAccessibilityPermission
 
             await MainActor.run {
+                defer { self.isChecking = false }
+
                 if hasScreenCapture && hasAccessibility {
                     print("✅ 所有权限已授予，跳过引导")
                     return
@@ -307,7 +317,7 @@ final class PermissionsWindowController {
 
                 print("⚠️ 权限检测: 屏幕录制=\(hasScreenCapture), 辅助功能=\(hasAccessibility)")
 
-                // 检查是否已经显示过
+                // 再次检查窗口是否存在
                 if self.window != nil {
                     self.window?.makeKeyAndOrderFront(nil)
                     return
