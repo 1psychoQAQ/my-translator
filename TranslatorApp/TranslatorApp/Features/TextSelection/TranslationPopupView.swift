@@ -36,8 +36,11 @@ class TranslationPopupWindow: NSWindow {
 
         self.isOpaque = false
         self.backgroundColor = .clear
-        self.level = .floating
+        // 使用高窗口级别，确保能显示在全屏应用上
+        self.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
         self.hasShadow = true
+        // 允许显示在全屏应用上
+        self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
         // 设置内容
         let view = PopupContentView(

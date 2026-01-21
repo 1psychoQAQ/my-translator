@@ -162,25 +162,42 @@ final class SelectionOverlayWindow: NSPanel {
                     // 保存到临时文件
                     let tempURL = Self.saveImageToTemp(image)
 
-                    // 复制到剪贴板（同时写入图片和文件路径）
+                    // 复制到剪贴板（使用 NSPasteboardItem 统一管理多种类型）
+                    // 目标应用会根据自己的能力选择读取哪种类型：
+                    // - 微信/预览等：读取 .png 图片
+                    // - 终端：读取 .string 纯文本路径
+                    // - Finder/文件选择器：读取 .fileURL
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
 
-                    // 将 CGImage 转换为 NSImage
+                    // 将 CGImage 转换为 PNG 数据
                     let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
+                    let bitmapRep = NSBitmapImageRep(cgImage: image)
+                    let pngData = bitmapRep.representation(using: .png, properties: [:])
+
+                    let item = NSPasteboardItem()
+
+                    // 写入 PNG 图片数据（优先级最高，大多数应用会用这个）
+                    if let pngData = pngData {
+                        item.setData(pngData, forType: .png)
+                    }
+
+                    // 写入 TIFF 数据（兼容性）
+                    if let tiffData = nsImage.tiffRepresentation {
+                        item.setData(tiffData, forType: .tiff)
+                    }
 
                     if let tempURL = tempURL {
-                        // 同时写入图片和文件 URL
-                        // 支持图片的应用会粘贴图片，终端等会粘贴文件路径
-                        pasteboard.writeObjects([nsImage, tempURL as NSURL])
-                        // 额外写入纯文本路径，确保终端能粘贴
-                        pasteboard.setString(tempURL.path, forType: .string)
+                        // 写入文件 URL（Finder、文件选择器用）
+                        item.setString(tempURL.absoluteString, forType: .fileURL)
+                        // 写入纯文本路径（终端用）
+                        item.setString(tempURL.path, forType: .string)
                         print("✅ 截图已复制到剪贴板（图片 + 路径: \(tempURL.path)）")
                     } else {
-                        // 保存失败，只写入图片
-                        pasteboard.writeObjects([nsImage])
                         print("✅ 截图已复制到剪贴板（仅图片）")
                     }
+
+                    pasteboard.writeObjects([item])
                 }
             } catch {
                 print("❌ 复制截图失败: \(error.localizedDescription)")
