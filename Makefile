@@ -31,20 +31,25 @@ dmg: release
 		-ov -format UDZO TranslatorApp-$$VERSION.dmg && \
 	echo "✅ DMG 创建完成: TranslatorApp/TranslatorApp-$$VERSION.dmg"
 
-# 上线新版本（构建 DMG + 上传 GitHub Release + 推送代码）
-deploy: dmg
-	@echo "📤 上传到 GitHub Release..."
+# 上线新版本（构建 DMG + 上传 GitHub Release + 更新下载页 + 推送代码）
+deploy: dmg check-env
 	@VERSION=$$(grep -A1 'MARKETING_VERSION' TranslatorApp/TranslatorApp.xcodeproj/project.pbxproj | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1 || echo "1.0.0"); \
 	DMG_FILE="TranslatorApp/TranslatorApp-$$VERSION.dmg"; \
+	echo "📤 上传到 GitHub Release..."; \
 	if [ -f "$$DMG_FILE" ]; then \
 		gh release create "v$$VERSION" "$$DMG_FILE" --title "v$$VERSION" --notes "版本 $$VERSION" 2>/dev/null || \
 		gh release upload "v$$VERSION" "$$DMG_FILE" --clobber; \
 		echo "✅ 已上传: v$$VERSION"; \
 	else \
 		echo "❌ DMG 文件不存在: $$DMG_FILE"; exit 1; \
-	fi
+	fi; \
+	echo "📤 更新下载页面..."; \
+	sed -i '' "s/version-badge\">v[0-9.]*</version-badge\">v$$VERSION</g" download-page/index.html; \
+	sed -i '' "s/download\/v[0-9.]*\/TranslatorApp-[0-9.]*.dmg/download\/v$$VERSION\/TranslatorApp-$$VERSION.dmg/g" download-page/index.html; \
+	scp -i $(DEPLOY_KEY) download-page/index.html root@$(DEPLOY_HOST):$(DEPLOY_PATH)/static/translator/; \
+	echo "✅ 下载页已更新: v$$VERSION"
 	@echo "📤 推送代码..."
-	git push
+	git push || echo "⚠️ 推送失败，请手动 git push"
 	@echo "✅ 上线完成"
 
 # 部署下载页面到服务器
