@@ -6,7 +6,7 @@ import AVFoundation
 // MARK: - 翻译弹窗
 
 @available(macOS 15.0, *)
-class TranslationPopupWindow: NSWindow {
+class TranslationPopupWindow: NSPanel {
 
     private var mouseMonitor: Any?
     private var keyMonitor: Any?
@@ -29,18 +29,22 @@ class TranslationPopupWindow: NSWindow {
 
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 320, height: 200),
-            styleMask: [.borderless],
+            styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
 
+        // 使用 screenSaver 级别，能覆盖全屏应用
+        self.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
         self.isOpaque = false
         self.backgroundColor = .clear
-        // 使用高窗口级别，确保能显示在全屏应用上
-        self.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.screenSaverWindow)))
         self.hasShadow = true
-        // 允许显示在全屏应用上
+        // 关键设置：允许显示在全屏应用上
         self.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // Panel 特有设置：即使应用不活跃也能接收事件
+        self.hidesOnDeactivate = false
+        self.isFloatingPanel = true
+        self.worksWhenModal = true
 
         // 设置内容
         let view = PopupContentView(
