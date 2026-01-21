@@ -490,46 +490,89 @@ private class OverlayView: NSView {
         currentHostingView = hostingView
     }
 
-    /// 定位悬浮工具条 - 贴着选区底部居中
+    /// 定位悬浮工具条 - 智能选择空间最大的方向
     private func positionToolbar(_ view: NSView, attachedTo rect: CGRect) {
         // 让 SwiftUI 自动计算尺寸
         view.setFrameSize(view.fittingSize)
         let size = view.frame.size
+        let margin: CGFloat = 8
 
-        // 居中于选区底部，紧贴选区
-        var x = rect.midX - size.width / 2
-        var y = rect.origin.y - size.height - 6
+        // 计算选区四周的可用空间
+        let spaceBelow = rect.origin.y  // 选区下方空间（坐标系原点在左下）
+        let spaceAbove = bounds.height - rect.maxY  // 选区上方空间
+        let spaceLeft = rect.origin.x  // 选区左侧空间
+        let spaceRight = bounds.width - rect.maxX  // 选区右侧空间
 
-        // 如果下方空间不足，放到选区上方
-        if y < 8 {
+        var x: CGFloat
+        var y: CGFloat
+
+        // 优先选择上下方向（更自然），选空间大的一边
+        if spaceBelow >= size.height + margin || spaceBelow >= spaceAbove {
+            // 放在选区下方
+            x = rect.midX - size.width / 2
+            y = rect.origin.y - size.height - 6
+            // 如果下方空间真的不够，尝试上方
+            if y < margin {
+                y = rect.maxY + 6
+            }
+        } else {
+            // 放在选区上方
+            x = rect.midX - size.width / 2
             y = rect.maxY + 6
         }
 
         // 确保不超出屏幕左右边界
-        if x < 8 {
-            x = 8
+        if x < margin {
+            x = margin
         }
-        if x + size.width > bounds.width - 8 {
-            x = bounds.width - size.width - 8
+        if x + size.width > bounds.width - margin {
+            x = bounds.width - size.width - margin
+        }
+
+        // 确保不超出屏幕上下边界
+        if y < margin {
+            y = margin
+        }
+        if y + size.height > bounds.height - margin {
+            y = bounds.height - size.height - margin
         }
 
         view.frame = CGRect(x: x, y: y, width: size.width, height: size.height)
     }
 
-    /// 定位结果视图 - 选区下方
+    /// 定位结果视图 - 智能选择空间最大的方向
     private func positionResultView(_ view: NSView, below rect: CGRect, preferredWidth: CGFloat, preferredHeight: CGFloat) {
-        var x = rect.origin.x
-        var y = rect.origin.y - preferredHeight - 8
+        let margin: CGFloat = 8
 
-        // 确保不超出屏幕
-        if y < 0 {
-            y = rect.maxY + 8
+        // 计算选区上下的可用空间
+        let spaceBelow = rect.origin.y
+        let spaceAbove = bounds.height - rect.maxY
+
+        var x = rect.origin.x
+        var y: CGFloat
+
+        // 选择空间大的一边
+        if spaceBelow >= preferredHeight + margin || spaceBelow >= spaceAbove {
+            y = rect.origin.y - preferredHeight - margin
+            if y < margin {
+                y = rect.maxY + margin
+            }
+        } else {
+            y = rect.maxY + margin
         }
-        if x + preferredWidth > bounds.width {
-            x = bounds.width - preferredWidth - 8
+
+        // 确保不超出屏幕边界
+        if x + preferredWidth > bounds.width - margin {
+            x = bounds.width - preferredWidth - margin
         }
-        if x < 0 {
-            x = 8
+        if x < margin {
+            x = margin
+        }
+        if y + preferredHeight > bounds.height - margin {
+            y = bounds.height - preferredHeight - margin
+        }
+        if y < margin {
+            y = margin
         }
 
         view.frame = CGRect(x: x, y: y, width: preferredWidth, height: preferredHeight)
