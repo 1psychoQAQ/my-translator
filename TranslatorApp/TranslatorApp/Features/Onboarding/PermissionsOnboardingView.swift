@@ -163,14 +163,21 @@ struct PermissionsOnboardingView: View {
 
     private func updatePermissionStatus() {
         let manager = PermissionsManager.shared
-        screenCaptureGranted = manager.hasScreenCapturePermission
         accessibilityGranted = manager.hasAccessibilityPermission
 
-        // 如果权限成功获取，记录当前版本
-        if screenCaptureGranted && accessibilityGranted {
-            let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-            UserDefaults.standard.set(currentVersion, forKey: "lastAuthorizedVersion")
-            needsPermissionReset = false
+        // 异步检测屏幕录制权限（更准确）
+        Task {
+            let hasScreenCapture = await manager.checkScreenCapturePermissionAsync()
+            await MainActor.run {
+                screenCaptureGranted = hasScreenCapture
+
+                // 如果权限成功获取，记录当前版本
+                if screenCaptureGranted && accessibilityGranted {
+                    let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+                    UserDefaults.standard.set(currentVersion, forKey: "lastAuthorizedVersion")
+                    needsPermissionReset = false
+                }
+            }
         }
     }
 
@@ -287,22 +294,18 @@ final class PermissionsWindowController {
     func showIfNeeded() {
         let manager = PermissionsManager.shared
 
-        // 先用同步方法快速检查
-        if manager.hasScreenCapturePermission && manager.hasAccessibilityPermission {
-            print("✅ 所有权限已授予，跳过引导")
-            return
-        }
-
-        // 异步更准确地检测屏幕录制权限
+        // 直接用异步方法准确检测，不依赖可能不准确的同步方法
         Task {
             let hasScreenCapture = await manager.checkScreenCapturePermissionAsync()
             let hasAccessibility = manager.hasAccessibilityPermission
 
             await MainActor.run {
                 if hasScreenCapture && hasAccessibility {
-                    print("✅ 所有权限已授予（异步检测），跳过引导")
+                    print("✅ 所有权限已授予，跳过引导")
                     return
                 }
+
+                print("⚠️ 权限检测: 屏幕录制=\(hasScreenCapture), 辅助功能=\(hasAccessibility)")
 
                 // 检查是否已经显示过
                 if self.window != nil {
