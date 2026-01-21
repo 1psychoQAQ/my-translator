@@ -31,6 +31,22 @@ dmg: release
 		-ov -format UDZO TranslatorApp-$$VERSION.dmg && \
 	echo "✅ DMG 创建完成: TranslatorApp/TranslatorApp-$$VERSION.dmg"
 
+# 上线新版本（构建 DMG + 上传 GitHub Release + 推送代码）
+deploy: dmg
+	@echo "📤 上传到 GitHub Release..."
+	@VERSION=$$(grep -A1 'MARKETING_VERSION' TranslatorApp/TranslatorApp.xcodeproj/project.pbxproj | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1 || echo "1.0.0"); \
+	DMG_FILE="TranslatorApp/TranslatorApp-$$VERSION.dmg"; \
+	if [ -f "$$DMG_FILE" ]; then \
+		gh release create "v$$VERSION" "$$DMG_FILE" --title "v$$VERSION" --notes "版本 $$VERSION" 2>/dev/null || \
+		gh release upload "v$$VERSION" "$$DMG_FILE" --clobber; \
+		echo "✅ 已上传: v$$VERSION"; \
+	else \
+		echo "❌ DMG 文件不存在: $$DMG_FILE"; exit 1; \
+	fi
+	@echo "📤 推送代码..."
+	git push
+	@echo "✅ 上线完成"
+
 # 部署下载页面到服务器
 deploy-page: check-env
 	@echo "📤 部署下载页面..."
@@ -53,6 +69,7 @@ help:
 	@echo "  make build       - 构建 Debug 版本"
 	@echo "  make release     - 构建 Release 版本"
 	@echo "  make dmg         - 创建 DMG 安装包"
+	@echo "  make deploy      - 上线新版本（构建+上传 GitHub Release+推送代码）"
 	@echo "  make deploy-page - 部署下载页面到服务器"
 	@echo "  make logs        - 查看服务器访问日志"
 	@echo "  make ssh         - SSH 到服务器"
