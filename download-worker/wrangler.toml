@@ -1,0 +1,8 @@
+name = "translator-download"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+# 自定义域名（在 Cloudflare Dashboard 配置后启用）
+# routes = [
+#   { pattern = "translator.makestuff.top", custom_domain = true }
+# ]
