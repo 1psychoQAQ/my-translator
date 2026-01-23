@@ -1,7 +1,7 @@
 # Translator - Makefile
 # 环境变量: DEPLOY_HOST, DEPLOY_KEY, DEPLOY_PATH (在 ~/.zshrc 中配置)
 
-.PHONY: build release deploy deploy-page logs help
+.PHONY: build release deploy deploy-page deploy-worker status logs help
 
 # 检查环境变量
 check-env:
@@ -58,6 +58,25 @@ deploy-page: check-env
 	scp -i $(DEPLOY_KEY) download-page/index.html root@$(DEPLOY_HOST):$(DEPLOY_PATH)/static/translator/
 	@echo "✅ 部署完成: https://translator.makestuff.top"
 
+# 部署 Cloudflare Worker
+deploy-worker:
+	@echo "📤 部署 Cloudflare Worker..."
+	cd download-worker && npx wrangler deploy
+	@echo "✅ Worker 部署完成"
+
+# 查看当前状态
+status: check-env
+	@echo "Translator 状态"
+	@echo "────────────────────────────────"
+	@VERSION=$$(grep -A1 'MARKETING_VERSION' TranslatorApp/TranslatorApp.xcodeproj/project.pbxproj | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1 || echo "unknown"); \
+	echo "本地版本: v$$VERSION"
+	@echo ""
+	@echo "GitHub Release:"
+	@gh release list --limit 3 2>/dev/null || echo "  (无法获取)"
+	@echo ""
+	@echo "下载页版本:"
+	@ssh -i $(DEPLOY_KEY) root@$(DEPLOY_HOST) "grep -o 'v[0-9.]*' $(DEPLOY_PATH)/static/translator/index.html | head -1" 2>/dev/null || echo "  (无法获取)"
+
 # 查看服务器日志
 logs: check-env
 	ssh -i $(DEPLOY_KEY) root@$(DEPLOY_HOST) "tail -f /var/log/nginx/access.log | grep translator"
@@ -68,18 +87,20 @@ ssh: check-env
 
 # 帮助
 help:
-	@echo "Translator Makefile"
+	@echo "Translator - 可用命令"
+	@echo "────────────────────────────────"
+	@echo "构建:"
+	@echo "  make build         构建 Debug 版本"
+	@echo "  make release       构建 Release 版本"
+	@echo "  make dmg           创建 DMG 安装包"
 	@echo ""
-	@echo "使用方法:"
-	@echo "  make build       - 构建 Debug 版本"
-	@echo "  make release     - 构建 Release 版本"
-	@echo "  make dmg         - 创建 DMG 安装包"
-	@echo "  make deploy      - 上线新版本（构建+上传 GitHub Release+推送代码）"
-	@echo "  make deploy-page - 部署下载页面到服务器"
-	@echo "  make logs        - 查看服务器访问日志"
-	@echo "  make ssh         - SSH 到服务器"
+	@echo "部署:"
+	@echo "  make deploy        上线新版本（DMG+GitHub Release+下载页）"
+	@echo "  make deploy-page   只部署下载页面"
+	@echo "  make deploy-worker 部署下载代理 Worker"
 	@echo ""
-	@echo "环境变量 (在 ~/.zshrc 中配置):"
-	@echo "  DEPLOY_HOST - 服务器地址"
-	@echo "  DEPLOY_KEY  - SSH 密钥路径"
-	@echo "  DEPLOY_PATH - 部署根目录"
+	@echo "其他:"
+	@echo "  make status        查看当前状态"
+	@echo "  make logs          查看服务器日志"
+	@echo "  make ssh           SSH 到服务器"
+	@echo "────────────────────────────────"
