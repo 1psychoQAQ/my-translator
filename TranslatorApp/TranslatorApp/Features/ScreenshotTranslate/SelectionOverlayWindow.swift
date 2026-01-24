@@ -284,12 +284,18 @@ private class OverlayView: NSView {
         case translating
         case showingResult(original: String, translated: String)
         case showingError(String)
+        case mosaic  // 马赛克模式
     }
 
     private var state: State = .selecting
     private var startPoint: NSPoint?
     private var currentRect: CGRect = .zero
     private var currentHostingView: NSHostingView<AnyView>?
+
+    // 马赛克相关
+    private var mosaicRects: [CGRect] = []  // 已打码区域列表
+    private var currentMosaicRect: CGRect = .zero  // 当前正在绘制的马赛克区域
+    private var mosaicStartPoint: NSPoint?
 
     private let onTranslate: (CGRect) async -> Void
     private let onCopy: (CGRect) -> Void
@@ -299,6 +305,7 @@ private class OverlayView: NSView {
     private let backgroundLayer = CALayer()       // 固定屏幕背景
     private let dimLayer = CAShapeLayer()         // 暗色遮罩层（带选区镂空）
     private let selectionLayer = CAShapeLayer()   // 选区边框
+    private let mosaicPreviewLayer = CAShapeLayer()  // 马赛克预览层
 
     init(frame: NSRect,
          frozenScreenImage: CGImage?,
@@ -340,6 +347,13 @@ private class OverlayView: NSView {
         selectionLayer.shadowRadius = 6
         selectionLayer.shadowOpacity = 0.4
         layer?.addSublayer(selectionLayer)
+
+        // 马赛克预览层
+        mosaicPreviewLayer.strokeColor = NSColor.systemRed.withAlphaComponent(0.8).cgColor
+        mosaicPreviewLayer.fillColor = NSColor.systemRed.withAlphaComponent(0.2).cgColor
+        mosaicPreviewLayer.lineWidth = 2
+        mosaicPreviewLayer.lineDashPattern = [4, 4]
+        layer?.addSublayer(mosaicPreviewLayer)
     }
 
     required init?(coder: NSCoder) {
@@ -351,33 +365,77 @@ private class OverlayView: NSView {
     // MARK: - Mouse Events
 
     override func mouseDown(with event: NSEvent) {
-        guard case .selecting = state else { return }
-        startPoint = convert(event.locationInWindow, from: nil)
-        currentRect = .zero
-        removeCurrentHostingView()
-        updateSelectionLayer()
+        let point = convert(event.locationInWindow, from: nil)
+
+        switch state {
+        case .selecting:
+            startPoint = point
+            currentRect = .zero
+            removeCurrentHostingView()
+            updateSelectionLayer()
+        case .mosaic:
+            // 检查点击是否在选区内
+            if currentRect.contains(point) {
+                mosaicStartPoint = point
+                currentMosaicRect = .zero
+            }
+        default:
+            break
+        }
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard case .selecting = state, let start = startPoint else { return }
         let current = convert(event.locationInWindow, from: nil)
 
-        let minX = min(start.x, current.x)
-        let minY = min(start.y, current.y)
-        let width = abs(current.x - start.x)
-        let height = abs(current.y - start.y)
+        switch state {
+        case .selecting:
+            guard let start = startPoint else { return }
+            let minX = min(start.x, current.x)
+            let minY = min(start.y, current.y)
+            let width = abs(current.x - start.x)
+            let height = abs(current.y - start.y)
+            currentRect = CGRect(x: minX, y: minY, width: width, height: height)
+            updateSelectionLayer()
 
-        currentRect = CGRect(x: minX, y: minY, width: width, height: height)
-        updateSelectionLayer()
+        case .mosaic:
+            guard let start = mosaicStartPoint else { return }
+            // 限制在选区内
+            let clampedX = max(currentRect.minX, min(currentRect.maxX, current.x))
+            let clampedY = max(currentRect.minY, min(currentRect.maxY, current.y))
+
+            let minX = max(currentRect.minX, min(start.x, clampedX))
+            let minY = max(currentRect.minY, min(start.y, clampedY))
+            let maxX = min(currentRect.maxX, max(start.x, clampedX))
+            let maxY = min(currentRect.maxY, max(start.y, clampedY))
+
+            currentMosaicRect = CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+            updateMosaicPreviewLayer()
+
+        default:
+            break
+        }
     }
 
     override func mouseUp(with event: NSEvent) {
-        guard case .selecting = state else { return }
-        guard currentRect.width > 10, currentRect.height > 10 else { return }
+        switch state {
+        case .selecting:
+            guard currentRect.width > 10, currentRect.height > 10 else { return }
+            state = .showingToolbar
+            showToolbar()
 
-        state = .showingToolbar
-        // Cursor will be popped in SelectionOverlayWindow.finishWith
-        showToolbar()
+        case .mosaic:
+            // 添加马赛克区域
+            if currentMosaicRect.width > 5, currentMosaicRect.height > 5 {
+                mosaicRects.append(currentMosaicRect)
+                applyMosaicToBackground()
+            }
+            currentMosaicRect = .zero
+            mosaicStartPoint = nil
+            updateMosaicPreviewLayer()
+
+        default:
+            break
+        }
     }
 
     private func updateSelectionLayer() {
@@ -407,6 +465,122 @@ private class OverlayView: NSView {
         CATransaction.commit()
     }
 
+    private func updateMosaicPreviewLayer() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        if currentMosaicRect.width > 0 && currentMosaicRect.height > 0 {
+            mosaicPreviewLayer.path = CGPath(rect: currentMosaicRect, transform: nil)
+        } else {
+            mosaicPreviewLayer.path = nil
+        }
+        CATransaction.commit()
+    }
+
+    /// 对背景图像应用马赛克效果
+    private func applyMosaicToBackground() {
+        guard let contents = backgroundLayer.contents else { return }
+        let cgImage = contents as! CGImage
+
+        // 转换坐标：视图坐标 -> 图像坐标
+        let scale = CGFloat(cgImage.width) / bounds.width
+        let imageRect = CGRect(
+            x: currentMosaicRect.origin.x * scale,
+            y: (bounds.height - currentMosaicRect.origin.y - currentMosaicRect.height) * scale,
+            width: currentMosaicRect.width * scale,
+            height: currentMosaicRect.height * scale
+        )
+
+        // 应用像素化马赛克
+        if let newImage = Self.applyPixelation(to: cgImage, in: imageRect, blockSize: 12) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            backgroundLayer.contents = newImage
+            CATransaction.commit()
+        }
+    }
+
+    /// 对图像指定区域应用像素化（不可恢复）
+    static func applyPixelation(to image: CGImage, in rect: CGRect, blockSize: Int) -> CGImage? {
+        let width = image.width
+        let height = image.height
+
+        // 创建位图上下文
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+
+        // 绘制原始图像
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        // 获取像素数据
+        guard let data = context.data else { return nil }
+        let pixels = data.bindMemory(to: UInt8.self, capacity: width * height * 4)
+
+        // 像素化处理：对指定区域进行块平均
+        let startX = max(0, Int(rect.origin.x))
+        let startY = max(0, Int(rect.origin.y))
+        let endX = min(width, Int(rect.origin.x + rect.width))
+        let endY = min(height, Int(rect.origin.y + rect.height))
+
+        // 遍历每个块
+        var y = startY
+        while y < endY {
+            var x = startX
+            while x < endX {
+                // 计算块的边界
+                let blockEndX = min(x + blockSize, endX)
+                let blockEndY = min(y + blockSize, endY)
+                let blockWidth = blockEndX - x
+                let blockHeight = blockEndY - y
+                let pixelCount = blockWidth * blockHeight
+
+                guard pixelCount > 0 else {
+                    x += blockSize
+                    continue
+                }
+
+                // 计算块内平均颜色
+                var totalR = 0, totalG = 0, totalB = 0, totalA = 0
+                for by in y..<blockEndY {
+                    for bx in x..<blockEndX {
+                        let offset = (by * width + bx) * 4
+                        totalR += Int(pixels[offset])
+                        totalG += Int(pixels[offset + 1])
+                        totalB += Int(pixels[offset + 2])
+                        totalA += Int(pixels[offset + 3])
+                    }
+                }
+
+                let avgR = UInt8(totalR / pixelCount)
+                let avgG = UInt8(totalG / pixelCount)
+                let avgB = UInt8(totalB / pixelCount)
+                let avgA = UInt8(totalA / pixelCount)
+
+                // 用平均颜色填充整个块
+                for by in y..<blockEndY {
+                    for bx in x..<blockEndX {
+                        let offset = (by * width + bx) * 4
+                        pixels[offset] = avgR
+                        pixels[offset + 1] = avgG
+                        pixels[offset + 2] = avgB
+                        pixels[offset + 3] = avgA
+                    }
+                }
+
+                x += blockSize
+            }
+            y += blockSize
+        }
+
+        return context.makeImage()
+    }
+
     // MARK: - UI Updates
 
     private func removeCurrentHostingView() {
@@ -434,6 +608,12 @@ private class OverlayView: NSView {
                 self.copyScreenshot(rect: screenRect)
                 self.onCopy(screenRect)
             },
+            onMosaic: { [weak self] in
+                guard let self = self else { return }
+                self.state = .mosaic
+                self.removeCurrentHostingView()
+                self.showMosaicToolbar()
+            },
             onCancel: { [weak self] in
                 self?.onCancel()
             }
@@ -453,6 +633,34 @@ private class OverlayView: NSView {
         positionToolbar(hostingView, attachedTo: currentRect)
         addSubview(hostingView)
         currentHostingView = hostingView
+    }
+
+    private func showMosaicToolbar() {
+        removeCurrentHostingView()
+
+        let toolbarView = MosaicToolbarView(
+            onDone: { [weak self] in
+                guard let self = self else { return }
+                self.state = .showingToolbar
+                self.showToolbar()
+            },
+            onUndo: { [weak self] in
+                self?.undoLastMosaic()
+            }
+        )
+
+        let hostingView = NSHostingView(rootView: AnyView(toolbarView))
+        positionToolbar(hostingView, attachedTo: currentRect)
+        addSubview(hostingView)
+        currentHostingView = hostingView
+    }
+
+    private func undoLastMosaic() {
+        // 撤销功能需要保存历史图像，暂不实现
+        // 因为像素化是不可恢复的，这里只是移除记录
+        if !mosaicRects.isEmpty {
+            mosaicRects.removeLast()
+        }
     }
 
     func showTranslationResult(original: String, translated: String) {
@@ -601,6 +809,7 @@ private class OverlayView: NSView {
 private struct ToolbarView: View {
     let onTranslate: () -> Void
     let onCopy: () -> Void
+    let onMosaic: () -> Void
     let onCancel: () -> Void
 
     var body: some View {
@@ -627,11 +836,52 @@ private struct ToolbarView: View {
                 .frame(height: 20)
                 .background(Color.white.opacity(0.3))
 
+            // 马赛克按钮
+            FloatingActionButton(
+                icon: "square.grid.3x3",
+                tooltip: "马赛克",
+                action: onMosaic
+            )
+
+            Divider()
+                .frame(height: 20)
+                .background(Color.white.opacity(0.3))
+
             // 取消按钮
             FloatingActionButton(
                 icon: "xmark",
                 tooltip: "取消",
                 action: onCancel
+            )
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(FloatingBarBackground())
+    }
+}
+
+/// 马赛克模式工具栏
+private struct MosaicToolbarView: View {
+    let onDone: () -> Void
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            // 提示文字
+            Text("框选打码区域")
+                .font(.system(size: 12))
+                .foregroundColor(.white.opacity(0.8))
+                .padding(.horizontal, 8)
+
+            Divider()
+                .frame(height: 20)
+                .background(Color.white.opacity(0.3))
+
+            // 完成按钮
+            FloatingActionButton(
+                icon: "checkmark",
+                tooltip: "完成",
+                action: onDone
             )
         }
         .padding(.horizontal, 6)
