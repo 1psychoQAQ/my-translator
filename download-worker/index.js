@@ -2,8 +2,10 @@
  * Translator 下载服务 - Cloudflare Worker
  *
  * 路由：
- * - /latest      → 最新版 macOS
- * - /v1.1.5      → 指定版本
+ * - /mac         → 最新版 macOS（推荐）
+ * - /latest/mac  → 最新版 macOS
+ * - /latest      → 最新版 macOS（兼容旧链接）
+ * - /v1.2.1/mac  → 指定版本
  * - /            → 下载页面
  * - /version     → 版本信息 API
  */
@@ -34,8 +36,21 @@ export default {
       });
     }
 
-    // 解析版本：/latest 或 /v1.1.5
-    const version = path.split('/').filter(Boolean)[0] || 'latest';
+    // 解析路径：/mac, /latest/mac, /v1.2.1/mac, /latest, /v1.2.1
+    const parts = path.split('/').filter(Boolean);
+    let version = 'latest';
+
+    if (parts.length === 1) {
+      // /mac -> latest, /latest -> latest, /v1.2.1 -> v1.2.1
+      if (parts[0] === 'mac') {
+        version = 'latest';
+      } else {
+        version = parts[0];
+      }
+    } else if (parts.length >= 2) {
+      // /latest/mac -> latest, /v1.2.1/mac -> v1.2.1
+      version = parts[0];
+    }
 
     try {
       const release = await getRelease(version);
@@ -222,7 +237,7 @@ function downloadPage() {
     <p class="subtitle">划词翻译 + 截图翻译，macOS 原生体验</p>
     <span class="version">macOS 15.0+</span>
 
-    <a href="/latest" class="download-btn">
+    <a href="/mac" class="download-btn">
       <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
       下载 macOS 版
     </a>
