@@ -117,6 +117,16 @@ function downloadPage() {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Translator - 下载</title>
   <style>
+    @property --angle {
+      syntax: '<angle>';
+      initial-value: 0deg;
+      inherits: false;
+    }
+    @property --glow {
+      syntax: '<number>';
+      initial-value: 0.5;
+      inherits: false;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -127,13 +137,63 @@ function downloadPage() {
       justify-content: center;
       padding: 20px;
     }
+    .card-wrapper {
+      position: relative;
+      max-width: 500px;
+      width: 100%;
+    }
+    /* 流光边框 - 外层发光 */
+    .card-wrapper::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 19px;
+      background: conic-gradient(
+        from var(--angle),
+        #34d399, #10b981, #059669, #047857, #34d399
+      );
+      animation: rotate 3s linear infinite, glow 2s ease-in-out infinite;
+      filter: blur(15px);
+      opacity: var(--glow);
+      z-index: -2;
+    }
+    /* 流光边框 - 主边框 */
+    .card-wrapper::after {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 18px;
+      background: conic-gradient(
+        from var(--angle),
+        #34d399, #10b981, #059669, #047857, #34d399
+      );
+      animation: rotate 3s linear infinite;
+      z-index: -1;
+    }
+    @keyframes rotate {
+      to { --angle: 360deg; }
+    }
+    @keyframes glow {
+      0%, 100% { --glow: 0.4; }
+      50% { --glow: 0.8; }
+    }
+    .card-wrapper::before, .card-wrapper::after {
+      transition: filter 0.2s ease-out, opacity 0.2s ease-out;
+    }
+    .card-wrapper:hover::before {
+      filter: blur(18px);
+      opacity: 0.7;
+    }
+    .card-wrapper:hover::after {
+      filter: brightness(1.08);
+    }
     .container {
       background: #12121a;
       border-radius: 16px;
       padding: 40px;
       text-align: center;
-      max-width: 420px;
-      border: 1px solid #2a2a3a;
+      position: relative;
+      z-index: 1;
     }
     h1 {
       font-size: 28px;
@@ -143,29 +203,96 @@ function downloadPage() {
     .subtitle {
       color: #888;
       margin-bottom: 30px;
-      font-size: 14px;
+    }
+    /* 下载区域 */
+    .download-section {
+      margin: 20px 0;
     }
     .download-btn {
       display: flex;
       align-items: center;
-      justify-content: center;
       gap: 12px;
-      padding: 16px 32px;
+      padding: 16px 20px;
       border-radius: 12px;
       text-decoration: none;
       color: white;
+      transition: transform 0.1s ease-out, box-shadow 0.15s ease-out, filter 0.15s ease-out;
       background: linear-gradient(135deg, #555 0%, #333 100%);
       box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-      transition: transform 0.1s, box-shadow 0.15s;
-      margin: 20px auto;
     }
     .download-btn:hover {
-      transform: translateY(-2px);
+      transform: translateY(-1px);
+      filter: brightness(1.05);
       box-shadow: 0 6px 20px rgba(0,0,0,0.4);
     }
-    .download-btn svg {
-      width: 24px;
-      height: 24px;
+    .download-btn:active {
+      transform: translateY(0);
+    }
+    .os-icon {
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+    }
+    .download-info {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      flex: 1;
+    }
+    .download-label {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .download-size {
+      font-size: 12px;
+      opacity: 0.7;
+    }
+    .download-arrow {
+      width: 20px;
+      height: 20px;
+      opacity: 0.5;
+    }
+    .download-hint {
+      color: #666;
+      font-size: 11px;
+      margin-top: 8px;
+    }
+    /* 折叠帮助 */
+    .help-details {
+      margin-top: 12px;
+      text-align: left;
+    }
+    .help-details summary {
+      color: #34d399;
+      font-size: 12px;
+      cursor: pointer;
+      transition: color 0.1s ease-out;
+    }
+    .help-details summary:hover {
+      color: #6ee7b7;
+    }
+    .help-details[open] summary {
+      margin-bottom: 8px;
+    }
+    .help-content {
+      background: rgba(255,255,255,0.03);
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 12px;
+      color: #888;
+    }
+    .help-content p {
+      margin: 8px 0;
+    }
+    .help-content strong {
+      color: #aaa;
+    }
+    .help-content ol {
+      margin: 10px 0;
+      padding-left: 20px;
+    }
+    .help-content li {
+      margin: 6px 0;
     }
     .features {
       margin-top: 30px;
@@ -175,92 +302,208 @@ function downloadPage() {
       list-style: none;
     }
     .features li {
-      margin: 12px 0;
-      padding-left: 28px;
+      margin: 10px 0;
+      padding-left: 24px;
       position: relative;
     }
     .features li::before {
       content: "✓";
       position: absolute;
       left: 0;
-      color: #00c853;
+      color: #34d399;
       font-weight: bold;
     }
-    .note {
-      margin-top: 25px;
-      padding: 15px;
-      background: rgba(255,243,205,0.08);
-      border: 1px solid rgba(255,243,205,0.15);
-      border-radius: 8px;
-      font-size: 12px;
-      color: #999;
-      text-align: left;
-    }
-    .note code {
-      background: rgba(255,255,255,0.1);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-family: 'SF Mono', Monaco, monospace;
-      font-size: 11px;
-    }
     .footer {
-      margin-top: 25px;
+      margin-top: 30px;
       font-size: 12px;
       color: #666;
     }
     .footer a {
-      color: #888;
+      color: #34d399;
       text-decoration: none;
+      transition: color 0.1s ease-out, opacity 0.1s ease-out;
     }
     .footer a:hover {
-      color: #fff;
+      color: #6ee7b7;
+      opacity: 0.9;
     }
-    .version {
+    /* 版本标签 */
+    .version-badge {
       display: inline-block;
-      background: #1a1a2e;
-      color: #888;
-      padding: 4px 10px;
-      border-radius: 12px;
+      background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 20px;
       font-size: 12px;
+      font-weight: 600;
       margin-bottom: 20px;
+      letter-spacing: 0.5px;
     }
-    .req {
-      color: #666;
+    /* 小终端 */
+    .terminal {
+      background: #1e1e1e;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+      margin-top: 10px;
+    }
+    .terminal-header {
+      background: #323232;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+    .terminal-dot.red { background: #ff5f56; }
+    .terminal-dot.yellow { background: #ffbd2e; }
+    .terminal-dot.green { background: #27ca40; }
+    .terminal-title {
+      color: #888;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    .terminal-code {
+      display: block;
+      padding: 12px;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
       font-size: 11px;
-      margin-top: 8px;
+      color: #f8f8f2;
+      cursor: pointer;
+      transition: background 0.08s ease-out;
+      word-break: break-all;
+    }
+    .terminal-code:hover {
+      background: #252525;
+    }
+    .terminal-code .prompt {
+      color: #50fa7b;
+      margin-right: 8px;
+    }
+    .terminal-code.copied {
+      background: rgba(80,250,123,0.1);
+    }
+    .terminal-code.copied::after {
+      content: '  ✓ 已复制';
+      color: #50fa7b;
+      font-size: 11px;
+    }
+    .copy-hint {
+      color: #555;
+      font-size: 10px;
+      margin-top: 6px;
+      text-align: right;
+    }
+    /* 步骤列表 */
+    .steps {
+      text-align: left;
+      margin: 15px 0;
+    }
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 12px 0;
+      color: #aaa;
+      font-size: 13px;
+    }
+    .step-num {
+      background: #34d399;
+      color: #000;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .step-text {
+      padding-top: 1px;
+    }
+    .step-text code {
+      background: rgba(52,211,153,0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 11px;
+      color: #34d399;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Translator</h1>
-    <p class="subtitle">划词翻译 + 截图翻译，macOS 原生体验</p>
-    <span class="version">macOS 15.0+</span>
+  <div class="card-wrapper">
+    <div class="container">
+      <span class="version-badge">v1.2.1</span>
+      <h1>Translator</h1>
+      <p class="subtitle">划词翻译 + 截图翻译，macOS 原生体验</p>
 
-    <a href="/mac" class="download-btn">
-      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
-      下载 macOS 版
-    </a>
-    <p class="req">DMG 安装包 · 约 800KB</p>
+      <div class="download-section">
+        <a href="/mac" class="download-btn">
+          <svg class="os-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+          <div class="download-info">
+            <span class="download-label">macOS 版本</span>
+            <span class="download-size">DMG 安装包 · 791 KB</span>
+          </div>
+          <svg class="download-arrow" viewBox="0 0 24 24" fill="currentColor"><path d="M12 16l-6-6h12z"/></svg>
+        </a>
+        <p class="download-hint">需要 macOS 15.0 (Sequoia) 或更高版本</p>
 
-    <ul class="features">
-      <li>划词翻译 <code>⌥T</code></li>
-      <li>截图翻译 + OCR <code>⌘⇧S</code></li>
-      <li>智能剪贴板（图片/文件路径）</li>
-      <li>生词本导出 CSV/JSON</li>
-      <li>Apple 本地翻译引擎，隐私安全</li>
-    </ul>
+        <details class="help-details" open>
+          <summary>⚠️ 提示「无法验证开发者」？</summary>
+          <div class="help-content">
+            <p>应用没有苹果签名，不影响使用。按以下步骤安装：</p>
 
-    <div class="note">
-      <strong>首次打开提示"无法验证开发者"？</strong><br><br>
-      右键点击应用 → 选择「打开」→ 再次点击「打开」<br>
-      或终端执行：<code>xattr -cr /Applications/Translator.app</code>
+            <div class="steps">
+              <div class="step">
+                <span class="step-num">1</span>
+                <span class="step-text">打开 DMG，将 TranslatorApp 拖到 Applications</span>
+              </div>
+              <div class="step">
+                <span class="step-num">2</span>
+                <span class="step-text">打开「系统设置」→「隐私与安全性」</span>
+              </div>
+              <div class="step">
+                <span class="step-num">3</span>
+                <span class="step-text">滚动到底部，点击「仍要打开」</span>
+              </div>
+            </div>
+
+            <p style="margin-top: 15px;"><strong>或者用终端命令：</strong></p>
+            <div class="terminal">
+              <div class="terminal-header">
+                <span class="terminal-dot red"></span>
+                <span class="terminal-dot yellow"></span>
+                <span class="terminal-dot green"></span>
+                <span class="terminal-title">Terminal</span>
+              </div>
+              <code class="terminal-code" onclick="navigator.clipboard.writeText('xattr -cr /Applications/TranslatorApp.app');this.classList.add('copied');setTimeout(()=>this.classList.remove('copied'),2000)"><span class="prompt">$</span> xattr -cr /Applications/TranslatorApp.app</code>
+            </div>
+            <p class="copy-hint">点击复制命令</p>
+          </div>
+        </details>
+      </div>
+
+      <ul class="features">
+        <li>划词翻译：选中文本 + <code>⌥T</code> 即时翻译</li>
+        <li>截图翻译：<code>⌘⇧S</code> 截取区域 OCR 翻译</li>
+        <li>智能粘贴：截图复制自动适配图片/路径</li>
+        <li>单词本：收藏单词，支持导出 CSV/JSON</li>
+        <li>完全本地：使用 Apple 翻译引擎，隐私安全</li>
+      </ul>
+
+      <p class="footer">
+        <a href="https://github.com/${GITHUB_REPO}" target="_blank">GitHub</a>
+        &nbsp;·&nbsp;
+        <a href="https://github.com/${GITHUB_REPO}/releases" target="_blank">所有版本</a>
+      </p>
     </div>
-
-    <p class="footer">
-      <a href="https://github.com/${GITHUB_REPO}" target="_blank">GitHub</a> ·
-      <a href="https://github.com/${GITHUB_REPO}/releases" target="_blank">所有版本</a>
-    </p>
   </div>
 </body>
 </html>`;
