@@ -850,13 +850,14 @@ private struct MosaicToolbarView: View {
     }
 }
 
-/// 悬浮操作条图标按钮
+/// 悬浮操作条图标按钮（带自定义 tooltip）
 private struct FloatingActionButton: View {
     let icon: String
     let tooltip: String
     let action: () -> Void
 
     @State private var isHovered = false
+    @State private var showTooltip = false
 
     var body: some View {
         Button(action: action) {
@@ -870,10 +871,38 @@ private struct FloatingActionButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .overlay(alignment: .top) {
+            if showTooltip {
+                Text(tooltip)
+                    .font(.system(size: 11))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.black.opacity(0.75))
+                    )
+                    .offset(y: -28)
+                    .transition(.opacity)
+            }
+        }
         .onHover { hovering in
             isHovered = hovering
+            if hovering {
+                // 延迟显示 tooltip
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if isHovered {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            showTooltip = true
+                        }
+                    }
+                }
+            } else {
+                withAnimation(.easeInOut(duration: 0.1)) {
+                    showTooltip = false
+                }
+            }
         }
-        .help(tooltip)
     }
 }
 
