@@ -871,36 +871,22 @@ private struct FloatingActionButton: View {
                 )
         }
         .buttonStyle(.plain)
-        .overlay(alignment: .top) {
-            if showTooltip {
-                Text(tooltip)
-                    .font(.system(size: 11))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.black.opacity(0.75))
-                    )
-                    .offset(y: -28)
-                    .transition(.opacity)
-            }
+        .popover(isPresented: $showTooltip, arrowEdge: .bottom) {
+            Text(tooltip)
+                .font(.system(size: 11))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
         }
         .onHover { hovering in
             isHovered = hovering
             if hovering {
-                // 延迟显示 tooltip
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     if isHovered {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            showTooltip = true
-                        }
+                        showTooltip = true
                     }
                 }
             } else {
-                withAnimation(.easeInOut(duration: 0.1)) {
-                    showTooltip = false
-                }
+                showTooltip = false
             }
         }
     }

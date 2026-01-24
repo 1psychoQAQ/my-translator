@@ -440,7 +440,7 @@ function downloadPage() {
 <body>
   <div class="card-wrapper">
     <div class="container">
-      <span class="version-badge">v1.2.1</span>
+      <span class="version-badge" id="version-badge">加载中...</span>
       <h1>Translator</h1>
       <p class="subtitle">划词翻译 + 截图翻译，macOS 原生体验</p>
 
@@ -505,6 +505,16 @@ function downloadPage() {
       </p>
     </div>
   </div>
+  <script>
+    fetch('/version')
+      .then(r => r.json())
+      .then(d => {
+        if (d.version) document.getElementById('version-badge').textContent = d.version;
+      })
+      .catch(() => {
+        document.getElementById('version-badge').textContent = '最新版';
+      });
+  </script>
 </body>
 </html>`;
 }

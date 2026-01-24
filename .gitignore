@@ -22,3 +22,4 @@ ChromeExtension/coverage/
 *.xcuserstate
 xcuserdata/
 release/
+*.dmg
