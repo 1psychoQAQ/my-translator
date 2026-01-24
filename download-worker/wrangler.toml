@@ -1,4 +1,7 @@
 name = "translator-download"
-# domain = translator.makestuff.top
 main = "index.js"
 compatibility_date = "2024-01-01"
+
+routes = [
+  { pattern = "translator.makestuff.top/*", zone_name = "makestuff.top" }
+]
