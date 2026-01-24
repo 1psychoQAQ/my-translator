@@ -14,14 +14,14 @@ const GITHUB_REPO = '1psychoQAQ/my-translator';
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases`;
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
 
     // /version - 返回最新版本信息
     if (path === '/version') {
       try {
-        const release = await getRelease('latest');
+        const release = await getRelease('latest', env);
         if (release) {
           return jsonResponse({ version: release.tag_name });
         }
@@ -55,7 +55,7 @@ export default {
     }
 
     try {
-      const release = await getRelease(version);
+      const release = await getRelease(version, env);
       if (!release) {
         return new Response('版本不存在', { status: 404 });
       }
@@ -88,7 +88,7 @@ export default {
   },
 };
 
-async function getRelease(version) {
+async function getRelease(version, env) {
   let apiUrl;
   if (version === 'latest') {
     apiUrl = `${GITHUB_API}/latest`;
@@ -96,12 +96,15 @@ async function getRelease(version) {
     apiUrl = `${GITHUB_API}/tags/${version}`;
   }
 
-  const response = await fetch(apiUrl, {
-    headers: {
-      'User-Agent': 'Translator-Download-Worker',
-      'Accept': 'application/vnd.github.v3+json',
-    },
-  });
+  const headers = {
+    'User-Agent': 'Download-Worker',
+    'Accept': 'application/vnd.github.v3+json',
+  };
+  if (env?.GITHUB_TOKEN) {
+    headers['Authorization'] = `token ${env.GITHUB_TOKEN}`;
+  }
+
+  const response = await fetch(apiUrl, { headers });
 
   if (!response.ok) {
     if (response.status === 404) return null;
