@@ -25,8 +25,10 @@ export default {
         if (release) {
           return jsonResponse({ version: release.tag_name });
         }
-      } catch (e) {}
-      return jsonResponse({ version: '' });
+        return jsonResponse({ version: '', error: 'no release' });
+      } catch (e) {
+        return jsonResponse({ version: '', error: e.message });
+      }
     }
 
     // 根路径：显示下载页面
