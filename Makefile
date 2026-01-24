@@ -1,16 +1,9 @@
 # Translator - Makefile
-# 环境变量: DEPLOY_HOST, DEPLOY_KEY, DEPLOY_PATH (在 ~/.zshrc 中配置)
 
-.PHONY: build release deploy deploy-page deploy-worker status logs help
+.PHONY: build release deploy deploy-page deploy-worker status help
 
 # 版本号从 git tag 获取
 VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
-
-# 检查环境变量
-check-env:
-	@test -n "$(DEPLOY_HOST)" || (echo "❌ 请设置 DEPLOY_HOST 环境变量" && exit 1)
-	@test -n "$(DEPLOY_KEY)" || (echo "❌ 请设置 DEPLOY_KEY 环境变量" && exit 1)
-	@test -n "$(DEPLOY_PATH)" || (echo "❌ 请设置 DEPLOY_PATH 环境变量" && exit 1)
 
 # 检查 tag
 check-tag:
@@ -40,8 +33,9 @@ dmg: release
 		-ov -format UDZO TranslatorApp-$(VERSION).dmg
 	@echo "✅ DMG 创建完成: TranslatorApp/TranslatorApp-$(VERSION).dmg"
 
-# 上线新版本（构建 DMG + 上传 GitHub Release + 更新下载页）
-deploy: dmg check-env
+# 上线新版本（构建 DMG + 上传 GitHub Release）
+# Worker 会自动获取最新版本，无需手动更新下载页
+deploy: dmg
 	@echo "📤 上传到 GitHub Release..."
 	@DMG_FILE="TranslatorApp/TranslatorApp-$(VERSION).dmg"; \
 	if [ -f "$$DMG_FILE" ]; then \
@@ -51,20 +45,11 @@ deploy: dmg check-env
 	else \
 		echo "❌ DMG 文件不存在: $$DMG_FILE"; exit 1; \
 	fi
-	@echo "📤 更新下载页面..."
-	@sed -i '' "s/version-badge\">v[0-9.]*</version-badge\">v$(VERSION)</g" download-page/index.html
-	@sed -i '' "s/download\/v[0-9.]*\/TranslatorApp-[0-9.]*.dmg/download\/v$(VERSION)\/TranslatorApp-$(VERSION).dmg/g" download-page/index.html
-	@scp -i $(DEPLOY_KEY) download-page/index.html root@$(DEPLOY_HOST):$(DEPLOY_PATH)/static/translator/
-	@echo "✅ 下载页已更新: v$(VERSION)"
-	@echo "📤 推送代码..."
-	@git push && git push --tags || echo "⚠️ 推送失败，请手动 git push"
 	@echo "✅ 上线完成: v$(VERSION)"
+	@echo "📍 下载页: https://translator.makestuff.top"
 
-# 部署下载页面到服务器
-deploy-page: check-env
-	@echo "📤 部署下载页面..."
-	scp -i $(DEPLOY_KEY) download-page/index.html root@$(DEPLOY_HOST):$(DEPLOY_PATH)/static/translator/
-	@echo "✅ 部署完成: https://translator.makestuff.top"
+# 部署下载页面（通过 Worker）
+deploy-page: deploy-worker
 
 # 部署 Cloudflare Worker
 deploy-worker:
@@ -73,7 +58,7 @@ deploy-worker:
 	@echo "✅ Worker 部署完成"
 
 # 查看当前状态
-status: check-env
+status:
 	@echo "Translator 状态"
 	@echo "────────────────────────────────"
 	@echo "本地版本: v$(VERSION)"
@@ -81,16 +66,8 @@ status: check-env
 	@echo "GitHub Release:"
 	@gh release list --limit 3 2>/dev/null || echo "  (无法获取)"
 	@echo ""
-	@echo "下载页版本:"
-	@ssh -i $(DEPLOY_KEY) root@$(DEPLOY_HOST) "grep -o 'v[0-9.]*' $(DEPLOY_PATH)/static/translator/index.html | head -1" 2>/dev/null || echo "  (无法获取)"
-
-# 查看服务器日志
-logs: check-env
-	ssh -i $(DEPLOY_KEY) root@$(DEPLOY_HOST) "tail -f /var/log/nginx/access.log | grep translator"
-
-# SSH 到服务器
-ssh: check-env
-	ssh -i $(DEPLOY_KEY) root@$(DEPLOY_HOST)
+	@echo "Worker 版本 (自动获取最新):"
+	@curl -s https://translator.makestuff.top/version 2>/dev/null | grep -o '"version":"[^"]*"' | cut -d'"' -f4 || echo "  (无法获取)"
 
 # 帮助
 help:
@@ -102,8 +79,7 @@ help:
 	@echo "  make dmg           创建 DMG 安装包"
 	@echo ""
 	@echo "部署:"
-	@echo "  make deploy        上线新版本（DMG+GitHub Release+下载页）"
-	@echo "  make deploy-page   只部署下载页面"
+	@echo "  make deploy        上线新版本（DMG+GitHub Release）"
 	@echo "  make deploy-worker 部署下载代理 Worker"
 	@echo ""
 	@echo "发版流程:"
@@ -111,6 +87,4 @@ help:
 	@echo ""
 	@echo "其他:"
 	@echo "  make status        查看当前状态"
-	@echo "  make logs          查看服务器日志"
-	@echo "  make ssh           SSH 到服务器"
 	@echo "────────────────────────────────"
