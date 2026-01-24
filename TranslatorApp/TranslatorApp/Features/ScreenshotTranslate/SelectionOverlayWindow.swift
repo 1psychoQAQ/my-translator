@@ -499,7 +499,7 @@ private class OverlayView: NSView {
         }
     }
 
-    /// 对图像指定区域应用像素化（不可恢复）
+    /// 对图像指定区域应用纯黑色覆盖（绝对不可恢复）
     static func applyPixelation(to image: CGImage, in rect: CGRect, blockSize: Int) -> CGImage? {
         let width = image.width
         let height = image.height
@@ -522,60 +522,20 @@ private class OverlayView: NSView {
         guard let data = context.data else { return nil }
         let pixels = data.bindMemory(to: UInt8.self, capacity: width * height * 4)
 
-        // 像素化处理：对指定区域进行块平均
+        // 纯黑色覆盖：直接将指定区域所有像素设为黑色
         let startX = max(0, Int(rect.origin.x))
         let startY = max(0, Int(rect.origin.y))
         let endX = min(width, Int(rect.origin.x + rect.width))
         let endY = min(height, Int(rect.origin.y + rect.height))
 
-        // 遍历每个块
-        var y = startY
-        while y < endY {
-            var x = startX
-            while x < endX {
-                // 计算块的边界
-                let blockEndX = min(x + blockSize, endX)
-                let blockEndY = min(y + blockSize, endY)
-                let blockWidth = blockEndX - x
-                let blockHeight = blockEndY - y
-                let pixelCount = blockWidth * blockHeight
-
-                guard pixelCount > 0 else {
-                    x += blockSize
-                    continue
-                }
-
-                // 计算块内平均颜色
-                var totalR = 0, totalG = 0, totalB = 0, totalA = 0
-                for by in y..<blockEndY {
-                    for bx in x..<blockEndX {
-                        let offset = (by * width + bx) * 4
-                        totalR += Int(pixels[offset])
-                        totalG += Int(pixels[offset + 1])
-                        totalB += Int(pixels[offset + 2])
-                        totalA += Int(pixels[offset + 3])
-                    }
-                }
-
-                let avgR = UInt8(totalR / pixelCount)
-                let avgG = UInt8(totalG / pixelCount)
-                let avgB = UInt8(totalB / pixelCount)
-                let avgA = UInt8(totalA / pixelCount)
-
-                // 用平均颜色填充整个块
-                for by in y..<blockEndY {
-                    for bx in x..<blockEndX {
-                        let offset = (by * width + bx) * 4
-                        pixels[offset] = avgR
-                        pixels[offset + 1] = avgG
-                        pixels[offset + 2] = avgB
-                        pixels[offset + 3] = avgA
-                    }
-                }
-
-                x += blockSize
+        for y in startY..<endY {
+            for x in startX..<endX {
+                let offset = (y * width + x) * 4
+                pixels[offset] = 0      // R
+                pixels[offset + 1] = 0  // G
+                pixels[offset + 2] = 0  // B
+                pixels[offset + 3] = 255 // A (不透明)
             }
-            y += blockSize
         }
 
         return context.makeImage()
