@@ -2,15 +2,22 @@
 
 .PHONY: build release sign notarize dmg deploy deploy-page deploy-worker status help
 
-# 版本号从 git tag 获取
-VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//')
+# 版本号从 git tag 获取（按创建时间排序，取最新）
+VERSION := $(shell git tag --sort=-creatordate 2>/dev/null | head -1 | sed 's/^v//')
 APP_PATH := TranslatorApp/build/Release/TranslatorApp.app
 DMG_PATH := TranslatorApp/TranslatorApp-$(VERSION).dmg
 
-# 检查 tag
+# 检查 tag 是否指向当前 HEAD
 check-tag:
 	@if [ -z "$(VERSION)" ]; then \
 		echo "❌ 当前没有 tag，请先创建: git tag v1.x.x"; \
+		exit 1; \
+	fi
+	@TAG_COMMIT=$$(git rev-list -n 1 "v$(VERSION)" 2>/dev/null); \
+	HEAD_COMMIT=$$(git rev-parse HEAD); \
+	if [ "$$TAG_COMMIT" != "$$HEAD_COMMIT" ]; then \
+		echo "❌ tag v$(VERSION) 不是指向当前 HEAD"; \
+		echo "   请先 commit 修改，再打新 tag"; \
 		exit 1; \
 	fi
 
