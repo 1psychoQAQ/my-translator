@@ -203,8 +203,7 @@ struct PermissionsOnboardingView: View {
     /// 授权屏幕录制
     private func authorizeScreenCapture() {
         onMoveToCorner()  // 降低窗口层级避免遮挡
-        // 先请求权限，让应用添加到系统设置列表中
-        PermissionsManager.shared.requestScreenCapturePermission()
+        // 直接打开系统设置，应用会自动出现在列表中
         PermissionsManager.shared.openScreenCaptureSettings()
     }
 

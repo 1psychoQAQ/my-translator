@@ -31,7 +31,8 @@ final class ScreenshotTranslateViewModel: ObservableObject {
         // 检查屏幕录制权限
         let permissions = PermissionsManager.shared
         if !permissions.hasScreenCapturePermission {
-            permissions.requestScreenCapturePermission()
+            // 显示自定义权限引导窗口，不弹系统对话框
+            PermissionsWindowController.shared.show()
             return
         }
 

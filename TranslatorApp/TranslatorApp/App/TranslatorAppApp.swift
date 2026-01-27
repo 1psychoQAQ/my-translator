@@ -244,9 +244,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if !trusted {
             print("⚠️ 需要辅助功能权限才能在其他应用中复制文本")
-            // 提示用户授权
-            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-            AXIsProcessTrustedWithOptions(options as CFDictionary)
+            // 显示自定义权限引导窗口，不弹系统对话框
+            PermissionsWindowController.shared.show()
             return
         }
 
