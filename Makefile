@@ -76,6 +76,7 @@ dmg: notarize check-signing
 		build/Release/TranslatorApp.app
 	@echo "🔐 签名 DMG..."
 	codesign --force --sign "$$APPLE_SIGNING_IDENTITY" "$(DMG_PATH)"
+	@osascript -e 'tell application "Finder" to close every window' 2>/dev/null || true
 	@echo "✅ DMG 创建完成: $(DMG_PATH)"
 
 # 上线新版本（构建 + 签名 + 公证 + DMG + 上传）
