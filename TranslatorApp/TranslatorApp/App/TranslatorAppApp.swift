@@ -249,6 +249,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // 获取前台应用信息（在模拟复制之前，因为复制后焦点可能变化）
+        let sourceInfo = getSourceInfo()
+        print("📱 来源: \(sourceInfo.source), URL: \(sourceInfo.url ?? "无")")
+
         // 先模拟 Cmd+C 复制选中文本
         simulateCopy()
 
@@ -280,13 +284,93 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     let word = Word(
                         text: text,
                         translation: translation,
-                        source: "selection"
+                        source: sourceInfo.source,
+                        sourceURL: sourceInfo.url
                     )
                     try? globalAppState.wordBookManager.save(word)
-                    print("✅ 已保存到单词本")
+                    print("✅ 已保存到单词本 (来源: \(sourceInfo.source))")
                 }
             }
         }
+    }
+
+    /// 获取来源信息（应用名称和 URL）
+    private static func getSourceInfo() -> (source: String, url: String?) {
+        guard let frontApp = NSWorkspace.shared.frontmostApplication else {
+            return ("selection", nil)
+        }
+
+        let bundleID = frontApp.bundleIdentifier ?? ""
+        let appName = frontApp.localizedName ?? "Unknown"
+
+        // 浏览器列表
+        let browsers: [String: String] = [
+            "com.apple.Safari": "Safari",
+            "com.google.Chrome": "Google Chrome",
+            "com.google.Chrome.canary": "Google Chrome Canary",
+            "org.chromium.Chromium": "Chromium",
+            "com.microsoft.edgemac": "Microsoft Edge",
+            "com.brave.Browser": "Brave Browser",
+            "company.thebrowser.Browser": "Arc",
+            "org.mozilla.firefox": "Firefox",
+            "com.operasoftware.Opera": "Opera",
+            "com.vivaldi.Vivaldi": "Vivaldi"
+        ]
+
+        // 如果是浏览器，尝试获取 URL
+        if let browserName = browsers[bundleID] {
+            if let url = getBrowserURL(bundleID: bundleID, browserName: browserName) {
+                return ("webpage", url)
+            }
+            // 获取 URL 失败，但仍然标记为 webpage
+            return ("webpage", nil)
+        }
+
+        // 非浏览器应用，使用应用名称作为 source
+        return (appName, nil)
+    }
+
+    /// 获取浏览器当前标签页的 URL
+    private static func getBrowserURL(bundleID: String, browserName: String) -> String? {
+        var script: String
+
+        switch bundleID {
+        case "com.apple.Safari":
+            script = """
+            tell application "Safari"
+                if (count of windows) > 0 then
+                    return URL of current tab of front window
+                end if
+            end tell
+            """
+        case "org.mozilla.firefox":
+            // Firefox 不支持直接获取 URL，返回 nil
+            return nil
+        default:
+            // Chrome 系浏览器（Chrome、Edge、Brave、Arc、Vivaldi、Opera）
+            script = """
+            tell application "\(browserName)"
+                if (count of windows) > 0 then
+                    return URL of active tab of front window
+                end if
+            end tell
+            """
+        }
+
+        // 执行 AppleScript
+        var error: NSDictionary?
+        if let appleScript = NSAppleScript(source: script) {
+            let result = appleScript.executeAndReturnError(&error)
+            if error == nil, let url = result.stringValue, !url.isEmpty {
+                return url
+            }
+        }
+
+        if let error = error {
+            print("⚠️ AppleScript 错误: \(error)")
+        }
+
+        return nil
     }
 
     /// 模拟 Cmd+C
