@@ -144,69 +144,52 @@ final class SelectionOverlayWindow: NSPanel {
         // 防止重复调用
         guard !hasCompleted else { return }
 
-        // 先隐藏窗口，避免截图时包含选区 UI
+        // 从画板裁剪选区（包含马赛克效果）
+        guard let image = overlayView?.getSelectionImage() else {
+            print("❌ 无法获取选区图像")
+            finishWith(.cancelled)
+            return
+        }
+
+        // 隐藏窗口
         if !hasHiddenWindow {
             orderOut(nil)
             hasHiddenWindow = true
         }
 
-        Task { [weak self] in
-            // 等待窗口完全隐藏
-            try? await Task.sleep(nanoseconds: 50_000_000) // 50ms
+        // 保存到临时文件
+        let tempURL = Self.saveImageToTemp(image)
 
-            do {
-                // 截取指定区域
-                let image = try await self?.captureRegion(rect)
+        // 复制到剪贴板
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
 
-                if let image = image {
-                    // 保存到临时文件
-                    let tempURL = Self.saveImageToTemp(image)
+        let bitmapRep = NSBitmapImageRep(cgImage: image)
+        let pngData = bitmapRep.representation(using: .png, properties: [:])
+        let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
 
-                    // 复制到剪贴板（使用 NSPasteboardItem 统一管理多种类型）
-                    // 目标应用会根据自己的能力选择读取哪种类型：
-                    // - 微信/预览等：读取 .png 图片
-                    // - 终端：读取 .string 纯文本路径
-                    // - Finder/文件选择器：读取 .fileURL
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
+        let item = NSPasteboardItem()
 
-                    // 将 CGImage 转换为 PNG 数据
-                    let nsImage = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
-                    let bitmapRep = NSBitmapImageRep(cgImage: image)
-                    let pngData = bitmapRep.representation(using: .png, properties: [:])
-
-                    let item = NSPasteboardItem()
-
-                    // 写入 PNG 图片数据（优先级最高，大多数应用会用这个）
-                    if let pngData = pngData {
-                        item.setData(pngData, forType: .png)
-                    }
-
-                    // 写入 TIFF 数据（兼容性）
-                    if let tiffData = nsImage.tiffRepresentation {
-                        item.setData(tiffData, forType: .tiff)
-                    }
-
-                    if let tempURL = tempURL {
-                        // 写入文件 URL（Finder、文件选择器用）
-                        item.setString(tempURL.absoluteString, forType: .fileURL)
-                        // 写入纯文本路径（终端用）
-                        item.setString(tempURL.path, forType: .string)
-                        print("✅ 截图已复制到剪贴板（图片 + 路径: \(tempURL.path)）")
-                    } else {
-                        print("✅ 截图已复制到剪贴板（仅图片）")
-                    }
-
-                    pasteboard.writeObjects([item])
-                }
-            } catch {
-                print("❌ 复制截图失败: \(error.localizedDescription)")
-            }
-
-            await MainActor.run { [weak self] in
-                self?.finishWith(.copied)
-            }
+        // PNG 图片数据
+        if let pngData = pngData {
+            item.setData(pngData, forType: .png)
         }
+
+        // TIFF 数据（兼容性）
+        if let tiffData = nsImage.tiffRepresentation {
+            item.setData(tiffData, forType: .tiff)
+        }
+
+        if let tempURL = tempURL {
+            item.setString(tempURL.absoluteString, forType: .fileURL)
+            item.setString(tempURL.path, forType: .string)
+            print("✅ 截图已复制到剪贴板（图片 + 路径: \(tempURL.path)）")
+        } else {
+            print("✅ 截图已复制到剪贴板（仅图片）")
+        }
+
+        pasteboard.writeObjects([item])
+        finishWith(.copied)
     }
 
     /// 保存图片到临时目录
@@ -760,6 +743,24 @@ private class OverlayView: NSView {
     private func copyScreenshot(rect: CGRect) {
         // 使用 ScreenCaptureKit 截图会在 ScreenshotService 中处理
         // 这里只是触发复制操作
+    }
+
+    /// 从画板裁剪选区部分（包含马赛克效果）
+    func getSelectionImage() -> CGImage? {
+        guard let contents = backgroundLayer.contents else { return nil }
+        let cgImage = contents as! CGImage
+
+        // 转换坐标：视图坐标（原点左下） -> 图像坐标（原点左上）
+        let scale = CGFloat(cgImage.width) / bounds.width
+
+        let imageRect = CGRect(
+            x: currentRect.origin.x * scale,
+            y: (bounds.height - currentRect.origin.y - currentRect.height) * scale,
+            width: currentRect.width * scale,
+            height: currentRect.height * scale
+        )
+
+        return cgImage.cropping(to: imageRect)
     }
 }
 

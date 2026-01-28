@@ -222,13 +222,13 @@ function downloadPage() {
       text-decoration: none;
       color: white;
       transition: transform 0.1s ease-out, box-shadow 0.15s ease-out, filter 0.15s ease-out;
-      background: linear-gradient(135deg, #555 0%, #333 100%);
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+      box-shadow: 0 4px 15px rgba(52,211,153,0.3);
     }
     .download-btn:hover {
       transform: translateY(-1px);
-      filter: brightness(1.05);
-      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+      filter: brightness(1.1);
+      box-shadow: 0 6px 20px rgba(52,211,153,0.4);
     }
     .download-btn:active {
       transform: translateY(0);
@@ -460,37 +460,23 @@ function downloadPage() {
         </a>
         <p class="download-hint">需要 macOS 15.0 (Sequoia) 或更高版本</p>
 
-        <details class="help-details" open>
-          <summary>⚠️ 提示「无法验证开发者」？</summary>
+        <details class="help-details">
+          <summary>🔐 需要授权哪些权限？</summary>
           <div class="help-content">
-            <p>应用没有苹果签名，不影响使用。按以下步骤安装：</p>
+            <p>首次使用时，系统会请求以下权限：</p>
 
             <div class="steps">
               <div class="step">
                 <span class="step-num">1</span>
-                <span class="step-text">打开 DMG，将 TranslatorApp 拖到 Applications</span>
+                <span class="step-text"><strong>辅助功能</strong> — 用于获取选中的文本，实现划词翻译</span>
               </div>
               <div class="step">
                 <span class="step-num">2</span>
-                <span class="step-text">打开「系统设置」→「隐私与安全性」</span>
-              </div>
-              <div class="step">
-                <span class="step-num">3</span>
-                <span class="step-text">滚动到底部，点击「仍要打开」</span>
+                <span class="step-text"><strong>屏幕录制</strong> — 用于截取屏幕区域，实现截图翻译</span>
               </div>
             </div>
 
-            <p style="margin-top: 15px;"><strong>或者用终端命令：</strong></p>
-            <div class="terminal">
-              <div class="terminal-header">
-                <span class="terminal-dot red"></span>
-                <span class="terminal-dot yellow"></span>
-                <span class="terminal-dot green"></span>
-                <span class="terminal-title">Terminal</span>
-              </div>
-              <code class="terminal-code" onclick="navigator.clipboard.writeText('xattr -cr /Applications/TranslatorApp.app');this.classList.add('copied');setTimeout(()=>this.classList.remove('copied'),2000)"><span class="prompt">$</span> xattr -cr /Applications/TranslatorApp.app</code>
-            </div>
-            <p class="copy-hint">点击复制命令</p>
+            <p style="margin-top: 12px; font-size: 11px; color: #666;">所有数据均在本地处理，不会上传到任何服务器。</p>
           </div>
         </details>
       </div>
