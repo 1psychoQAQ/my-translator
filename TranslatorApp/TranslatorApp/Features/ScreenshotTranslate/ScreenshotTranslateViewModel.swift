@@ -41,13 +41,21 @@ final class ScreenshotTranslateViewModel: ObservableObject {
             return
         }
 
-        // 显示选区窗口，传入翻译回调
-        let action = await screenshotService.showSelectionAndCapture { [weak self] rect in
-            guard let self = self else {
-                throw TranslatorError.screenshotFailed(reason: "ViewModel 已释放")
+        // 显示选区窗口，传入翻译回调与提取文字回调
+        let action = await screenshotService.showSelectionAndCapture(
+            onTranslate: { [weak self] rect in
+                guard let self = self else {
+                    throw TranslatorError.screenshotFailed(reason: "ViewModel 已释放")
+                }
+                return try await self.performTranslation(rect: rect)
+            },
+            onExtractText: { [weak self] rect in
+                guard let self = self else {
+                    throw TranslatorError.screenshotFailed(reason: "ViewModel 已释放")
+                }
+                return try await self.captureAndRecognize(rect: rect)
             }
-            return try await self.performTranslation(rect: rect)
-        }
+        )
 
         // 根据用户操作执行相应逻辑
         switch action {
@@ -58,6 +66,10 @@ final class ScreenshotTranslateViewModel: ObservableObject {
             // 复制操作在 overlay 中已完成
             print("✅ 已复制到剪贴板")
 
+        case .aiAsk(let context):
+            // 打开 AI 提问弹窗
+            AIChatController.shared.show(context: context)
+
         case .cancelled:
             // 用户取消，什么都不做
             print("ℹ️ 用户取消")
@@ -66,9 +78,28 @@ final class ScreenshotTranslateViewModel: ObservableObject {
 
     /// 执行翻译：截图 → OCR → 翻译
     private func performTranslation(rect: CGRect) async throws -> (original: String, translated: String) {
+        let recognizedText = try await captureAndRecognize(rect: rect)
+
+        guard let translationService = translationService else {
+            throw TranslatorError.screenshotFailed(reason: "服务未配置")
+        }
+
+        // 翻译 (英语 -> 中文)
+        print("🌐 Translating...")
+        let translatedText = try await translationService.translate(
+            recognizedText,
+            from: "en",
+            to: "zh-Hans"
+        )
+        print("✅ Translation result: \(translatedText.prefix(50))...")
+
+        return (original: recognizedText, translated: translatedText)
+    }
+
+    /// 截图 + OCR，返回识别文本（供翻译和 AI 提问复用）
+    private func captureAndRecognize(rect: CGRect) async throws -> String {
         guard let screenshotService = screenshotService,
-              let ocrService = ocrService,
-              let translationService = translationService else {
+              let ocrService = ocrService else {
             throw TranslatorError.screenshotFailed(reason: "服务未配置")
         }
 
@@ -86,16 +117,7 @@ final class ScreenshotTranslateViewModel: ObservableObject {
             throw TranslatorError.ocrFailed(reason: "未识别到文字")
         }
 
-        // 3. 翻译 (英语 -> 中文)
-        print("🌐 Translating...")
-        let translatedText = try await translationService.translate(
-            recognizedText,
-            from: "en",
-            to: "zh-Hans"
-        )
-        print("✅ Translation result: \(translatedText.prefix(50))...")
-
-        return (original: recognizedText, translated: translatedText)
+        return recognizedText
     }
 
     private func saveToWordBook(original: String, translated: String) {

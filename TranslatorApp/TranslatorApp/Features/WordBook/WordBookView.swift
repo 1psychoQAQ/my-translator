@@ -317,6 +317,7 @@ struct WordRowView: View {
 struct WordBookSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var hotkeySettings = HotkeySettings.shared
+    @StateObject private var llmSettings = LLMSettings.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -346,13 +347,59 @@ struct WordBookSettingsView: View {
                             modifiers: $hotkeySettings.screenshotModifiers
                         )
                     }
+                    HStack {
+                        Text("选择文本提问")
+                        Spacer()
+                        KeyRecorderView(
+                            keyCode: $hotkeySettings.aiKeyCode,
+                            modifiers: $hotkeySettings.aiModifiers
+                        )
+                    }
+                    HStack {
+                        Text("空白提问")
+                        Spacer()
+                        KeyRecorderView(
+                            keyCode: $hotkeySettings.blankAskKeyCode,
+                            modifiers: $hotkeySettings.blankAskModifiers
+                        )
+                    }
+                    HStack {
+                        Text("关键词释义")
+                        Spacer()
+                        KeyRecorderView(
+                            keyCode: $hotkeySettings.defineKeyCode,
+                            modifiers: $hotkeySettings.defineModifiers
+                        )
+                    }
                 } header: {
                     Text("快捷键")
+                }
+
+                Section {
+                    Picker("供应商", selection: $llmSettings.provider) {
+                        ForEach(LLMProvider.allCases) { provider in
+                            Text(provider.displayName).tag(provider)
+                        }
+                    }
+
+                    HStack {
+                        Text("API Key")
+                        Spacer()
+                        SecureField("sk-...", text: $llmSettings.apiKey)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 180)
+                    }
+
+                    Text("API Key 通过 macOS 钥匙串加密存储，仅保存在本机")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                } header: {
+                    Text("AI 助手")
                 }
             }
             .formStyle(.grouped)
         }
-        .frame(width: 320, height: 220)
+        .frame(width: 340, height: 520)
     }
 }
 
@@ -364,6 +411,12 @@ final class HotkeySettings: ObservableObject {
     private let defaults = UserDefaults.standard
     private let keyCodeKey = "screenshotHotkeyKeyCode"
     private let modifiersKey = "screenshotHotkeyModifiers"
+    private let aiKeyCodeKey = "aiHotkeyKeyCode"
+    private let aiModifiersKey = "aiHotkeyModifiers"
+    private let blankAskKeyCodeKey = "blankAskHotkeyKeyCode"
+    private let blankAskModifiersKey = "blankAskHotkeyModifiers"
+    private let defineKeyCodeKey = "defineHotkeyKeyCode"
+    private let defineModifiersKey = "defineHotkeyModifiers"
 
     @Published var screenshotKeyCode: UInt32 {
         didSet {
@@ -379,10 +432,61 @@ final class HotkeySettings: ObservableObject {
         }
     }
 
+    @Published var aiKeyCode: UInt32 {
+        didSet {
+            defaults.set(aiKeyCode, forKey: aiKeyCodeKey)
+            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
+        }
+    }
+
+    @Published var aiModifiers: UInt32 {
+        didSet {
+            defaults.set(aiModifiers, forKey: aiModifiersKey)
+            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
+        }
+    }
+
+    @Published var blankAskKeyCode: UInt32 {
+        didSet {
+            defaults.set(blankAskKeyCode, forKey: blankAskKeyCodeKey)
+            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
+        }
+    }
+
+    @Published var blankAskModifiers: UInt32 {
+        didSet {
+            defaults.set(blankAskModifiers, forKey: blankAskModifiersKey)
+            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
+        }
+    }
+
+    @Published var defineKeyCode: UInt32 {
+        didSet {
+            defaults.set(defineKeyCode, forKey: defineKeyCodeKey)
+            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
+        }
+    }
+
+    @Published var defineModifiers: UInt32 {
+        didSet {
+            defaults.set(defineModifiers, forKey: defineModifiersKey)
+            NotificationCenter.default.post(name: .hotkeyChanged, object: nil)
+        }
+    }
+
     private init() {
-        // 默认快捷键: ⌘+⇧+S (keyCode=1 是 S 键)
+        // 默认截图快捷键: ⌘+⇧+S (keyCode=1 是 S 键)
         let defaultKeyCode: UInt32 = 1  // kVK_ANSI_S
         let defaultModifiers: UInt32 = UInt32(cmdKey | shiftKey)
+        // 默认选择文本提问快捷键: ⌥+Q (keyCode=12 是 Q 键)
+        let defaultAIKeyCode: UInt32 = 12  // kVK_ANSI_Q
+        let defaultAIModifiers: UInt32 = UInt32(optionKey)
+        // 默认空白提问快捷键: ⌥+A (keyCode=0 是 A 键)
+        let defaultBlankAskKeyCode: UInt32 = 0  // kVK_ANSI_A
+        let defaultBlankAskModifiers: UInt32 = UInt32(optionKey)
+        // 默认关键词释义快捷键: ⌥+D (keyCode=2 是 D 键)
+        let defaultDefineKeyCode: UInt32 = 2  // kVK_ANSI_D
+        let defaultDefineModifiers: UInt32 = UInt32(optionKey)
 
         if defaults.object(forKey: keyCodeKey) == nil {
             defaults.set(defaultKeyCode, forKey: keyCodeKey)
@@ -390,20 +494,60 @@ final class HotkeySettings: ObservableObject {
         if defaults.object(forKey: modifiersKey) == nil {
             defaults.set(defaultModifiers, forKey: modifiersKey)
         }
+        if defaults.object(forKey: aiKeyCodeKey) == nil {
+            defaults.set(defaultAIKeyCode, forKey: aiKeyCodeKey)
+        }
+        if defaults.object(forKey: aiModifiersKey) == nil {
+            defaults.set(defaultAIModifiers, forKey: aiModifiersKey)
+        }
+        if defaults.object(forKey: blankAskKeyCodeKey) == nil {
+            defaults.set(defaultBlankAskKeyCode, forKey: blankAskKeyCodeKey)
+        }
+        if defaults.object(forKey: blankAskModifiersKey) == nil {
+            defaults.set(defaultBlankAskModifiers, forKey: blankAskModifiersKey)
+        }
+        if defaults.object(forKey: defineKeyCodeKey) == nil {
+            defaults.set(defaultDefineKeyCode, forKey: defineKeyCodeKey)
+        }
+        if defaults.object(forKey: defineModifiersKey) == nil {
+            defaults.set(defaultDefineModifiers, forKey: defineModifiersKey)
+        }
 
         self.screenshotKeyCode = UInt32(defaults.integer(forKey: keyCodeKey))
         self.screenshotModifiers = UInt32(defaults.integer(forKey: modifiersKey))
+        self.aiKeyCode = UInt32(defaults.integer(forKey: aiKeyCodeKey))
+        self.aiModifiers = UInt32(defaults.integer(forKey: aiModifiersKey))
+        self.blankAskKeyCode = UInt32(defaults.integer(forKey: blankAskKeyCodeKey))
+        self.blankAskModifiers = UInt32(defaults.integer(forKey: blankAskModifiersKey))
+        self.defineKeyCode = UInt32(defaults.integer(forKey: defineKeyCodeKey))
+        self.defineModifiers = UInt32(defaults.integer(forKey: defineModifiersKey))
     }
 
     var displayString: String {
+        displayString(keyCode: screenshotKeyCode, modifiers: screenshotModifiers)
+    }
+
+    var aiDisplayString: String {
+        displayString(keyCode: aiKeyCode, modifiers: aiModifiers)
+    }
+
+    var blankAskDisplayString: String {
+        displayString(keyCode: blankAskKeyCode, modifiers: blankAskModifiers)
+    }
+
+    var defineDisplayString: String {
+        displayString(keyCode: defineKeyCode, modifiers: defineModifiers)
+    }
+
+    private func displayString(keyCode: UInt32, modifiers: UInt32) -> String {
         var parts: [String] = []
 
-        if screenshotModifiers & UInt32(controlKey) != 0 { parts.append("⌃") }
-        if screenshotModifiers & UInt32(optionKey) != 0 { parts.append("⌥") }
-        if screenshotModifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
-        if screenshotModifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
+        if modifiers & UInt32(controlKey) != 0 { parts.append("⌃") }
+        if modifiers & UInt32(optionKey) != 0 { parts.append("⌥") }
+        if modifiers & UInt32(shiftKey) != 0 { parts.append("⇧") }
+        if modifiers & UInt32(cmdKey) != 0 { parts.append("⌘") }
 
-        if let keyString = keyCodeToString(screenshotKeyCode) {
+        if let keyString = keyCodeToString(keyCode) {
             parts.append(keyString)
         }
 

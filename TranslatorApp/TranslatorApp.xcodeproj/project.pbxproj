@@ -25,6 +25,11 @@
 		E10000010000000000000017 /* ImportExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000017 /* ImportExportService.swift */; };
 		E10000010000000000000021 /* TranslationPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000021 /* TranslationPopupView.swift */; };
 		E10000010000000000000022 /* TranslationResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000022 /* TranslationResultView.swift */; };
+		E10000010000000000000023 /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000023 /* LLMService.swift */; };
+		E10000010000000000000024 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000024 /* KeychainManager.swift */; };
+		E10000010000000000000025 /* LLMSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000025 /* LLMSettings.swift */; };
+		E10000010000000000000026 /* AIChatWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000026 /* AIChatWindow.swift */; };
+		E10000010000000000000027 /* DefinitionPopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000020000000000000027 /* DefinitionPopupView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,6 +70,11 @@
 		E10000020000000000000017 /* ImportExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportExportService.swift; sourceTree = "<group>"; };
 		E10000020000000000000021 /* TranslationPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationPopupView.swift; sourceTree = "<group>"; };
 		E10000020000000000000022 /* TranslationResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranslationResultView.swift; sourceTree = "<group>"; };
+		E10000020000000000000023 /* LLMService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMService.swift; sourceTree = "<group>"; };
+		E10000020000000000000024 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		E10000020000000000000025 /* LLMSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMSettings.swift; sourceTree = "<group>"; };
+		E10000020000000000000026 /* AIChatWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatWindow.swift; sourceTree = "<group>"; };
+		E10000020000000000000027 /* DefinitionPopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefinitionPopupView.swift; sourceTree = "<group>"; };
 		E10000030000000000000001 /* TranslatorApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TranslatorApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E10000040000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E10000040000000000000002 /* TranslatorApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TranslatorApp.entitlements; sourceTree = "<group>"; };
@@ -148,6 +158,8 @@
 				E10000020000000000000004 /* OCRService.swift */,
 				E10000020000000000000005 /* TranslationService.swift */,
 				E10000020000000000000006 /* ScreenshotService.swift */,
+				E10000020000000000000023 /* LLMService.swift */,
+				E10000020000000000000024 /* KeychainManager.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -157,6 +169,7 @@
 			children = (
 				E10000020000000000000015 /* PermissionsManager.swift */,
 				E10000020000000000000007 /* WordBookManager.swift */,
+				E10000020000000000000025 /* LLMSettings.swift */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -164,6 +177,7 @@
 		E10000060000000000000007 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				E10000060000000000000016 /* AIChat */,
 				E10000060000000000000013 /* Onboarding */,
 				E10000060000000000000008 /* ScreenshotTranslate */,
 				E10000060000000000000015 /* Shared */,
@@ -171,30 +185,6 @@
 				E10000060000000000000012 /* WordBook */,
 			);
 			path = Features;
-			sourceTree = "<group>";
-		};
-		E10000060000000000000015 /* Shared */ = {
-			isa = PBXGroup;
-			children = (
-				E10000020000000000000022 /* TranslationResultView.swift */,
-			);
-			path = Shared;
-			sourceTree = "<group>";
-		};
-		E10000060000000000000014 /* TextSelection */ = {
-			isa = PBXGroup;
-			children = (
-				E10000020000000000000021 /* TranslationPopupView.swift */,
-			);
-			path = TextSelection;
-			sourceTree = "<group>";
-		};
-		E10000060000000000000013 /* Onboarding */ = {
-			isa = PBXGroup;
-			children = (
-				E10000020000000000000016 /* PermissionsOnboardingView.swift */,
-			);
-			path = Onboarding;
 			sourceTree = "<group>";
 		};
 		E10000060000000000000008 /* ScreenshotTranslate */ = {
@@ -239,6 +229,39 @@
 				E10000020000000000000012 /* WordBookView.swift */,
 			);
 			path = WordBook;
+			sourceTree = "<group>";
+		};
+		E10000060000000000000013 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				E10000020000000000000016 /* PermissionsOnboardingView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		E10000060000000000000014 /* TextSelection */ = {
+			isa = PBXGroup;
+			children = (
+				E10000020000000000000021 /* TranslationPopupView.swift */,
+				E10000020000000000000027 /* DefinitionPopupView.swift */,
+			);
+			path = TextSelection;
+			sourceTree = "<group>";
+		};
+		E10000060000000000000015 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				E10000020000000000000022 /* TranslationResultView.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		E10000060000000000000016 /* AIChat */ = {
+			isa = PBXGroup;
+			children = (
+				E10000020000000000000026 /* AIChatWindow.swift */,
+			);
+			path = AIChat;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -409,6 +432,11 @@
 				E10000010000000000000017 /* ImportExportService.swift in Sources */,
 				E10000010000000000000021 /* TranslationPopupView.swift in Sources */,
 				E10000010000000000000022 /* TranslationResultView.swift in Sources */,
+				E10000010000000000000023 /* LLMService.swift in Sources */,
+				E10000010000000000000024 /* KeychainManager.swift in Sources */,
+				E10000010000000000000025 /* LLMSettings.swift in Sources */,
+				E10000010000000000000026 /* AIChatWindow.swift in Sources */,
+				E10000010000000000000027 /* DefinitionPopupView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -637,7 +665,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 4TCPH56CJ6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = TranslatorApp/Info.plist;
@@ -666,7 +694,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 4TCPH56CJ6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = TranslatorApp/Info.plist;

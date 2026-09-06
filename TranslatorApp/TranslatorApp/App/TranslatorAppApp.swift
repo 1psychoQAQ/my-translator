@@ -111,6 +111,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         screenshotItem.tag = 1  // 用于后续更新
         menu.addItem(screenshotItem)
         menu.addItem(NSMenuItem(title: "翻译选中文本 (⌥T)", action: nil, keyEquivalent: ""))
+
+        let aiAskItem = NSMenuItem(
+            title: "选择文本提问 (\(HotkeySettings.shared.aiDisplayString))",
+            action: #selector(askAI),
+            keyEquivalent: ""
+        )
+        aiAskItem.tag = 2
+        menu.addItem(aiAskItem)
+
+        let blankAskItem = NSMenuItem(
+            title: "空白提问 (\(HotkeySettings.shared.blankAskDisplayString))",
+            action: #selector(askAIBlank),
+            keyEquivalent: ""
+        )
+        blankAskItem.tag = 3
+        menu.addItem(blankAskItem)
+
+        let defineItem = NSMenuItem(
+            title: "关键词释义 (\(HotkeySettings.shared.defineDisplayString))",
+            action: #selector(defineWord),
+            keyEquivalent: ""
+        )
+        defineItem.tag = 4
+        menu.addItem(defineItem)
+
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "打开单词本", action: #selector(openWordBook), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
@@ -150,9 +175,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func updateMenuHotkeyDisplay() {
-        if let menu = statusItem.menu,
-           let item = menu.item(withTag: 1) {
+        guard let menu = statusItem.menu else { return }
+        if let item = menu.item(withTag: 1) {
             item.title = "截图翻译 (\(HotkeySettings.shared.displayString))"
+        }
+        if let item = menu.item(withTag: 2) {
+            item.title = "选择文本提问 (\(HotkeySettings.shared.aiDisplayString))"
+        }
+        if let item = menu.item(withTag: 3) {
+            item.title = "空白提问 (\(HotkeySettings.shared.blankAskDisplayString))"
+        }
+        if let item = menu.item(withTag: 4) {
+            item.title = "关键词释义 (\(HotkeySettings.shared.defineDisplayString))"
         }
     }
 
@@ -160,6 +194,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         Task { @MainActor in
             await globalAppState.screenshotTranslateViewModel.startScreenshotTranslation()
         }
+    }
+
+    @objc func askAI() {
+        AppDelegate.triggerAIQuestion()
+    }
+
+    @objc func askAIBlank() {
+        AppDelegate.triggerBlankAIQuestion()
+    }
+
+    @objc func defineWord() {
+        AppDelegate.triggerDefine()
     }
 
     private var isOpeningWordBook = false
@@ -294,6 +340,94 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// 触发 AI 提问（从剪贴板获取选中文本作为上下文）
+    static func triggerAIQuestion() {
+        print("🤖 triggerAIQuestion called")
+
+        // 检查辅助功能权限（模拟键盘需要）
+        let trusted = AXIsProcessTrusted()
+        if !trusted {
+            print("⚠️ 需要辅助功能权限才能在其他应用中复制文本")
+            PermissionsWindowController.shared.show()
+            return
+        }
+
+        // 先模拟 Cmd+C 复制选中文本
+        simulateCopy()
+
+        // 等待剪贴板更新
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            guard let text = NSPasteboard.general.string(forType: .string),
+                  !text.isEmpty else {
+                print("❌ 剪贴板为空或获取失败")
+                return
+            }
+
+            let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedText.isEmpty else {
+                print("❌ 文本为空")
+                return
+            }
+
+            print("🤖 选中文本: \(trimmedText.prefix(50))...")
+            AIChatController.shared.show(context: trimmedText)
+        }
+    }
+
+    /// 触发空白提问（不复制选中文字，直接打开空白 AI 窗口）
+    static func triggerBlankAIQuestion() {
+        print("🤖 triggerBlankAIQuestion called")
+        DispatchQueue.main.async {
+            AIChatController.shared.show(context: nil)
+        }
+    }
+
+    /// 触发关键词释义（选中文字后直接弹出释义弹窗）
+    static func triggerDefine() {
+        print("📖 triggerDefine called")
+
+        // 检查辅助功能权限（模拟键盘需要）
+        let trusted = AXIsProcessTrusted()
+        if !trusted {
+            print("⚠️ 需要辅助功能权限才能在其他应用中复制文本")
+            PermissionsWindowController.shared.show()
+            return
+        }
+
+        // 模拟 Cmd+C 复制选中文字
+        simulateCopy()
+
+        // 等待剪贴板更新
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            guard let text = NSPasteboard.general.string(forType: .string),
+                  !text.isEmpty else {
+                print("❌ 剪贴板为空或获取失败")
+                return
+            }
+
+            let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedText.isEmpty, trimmedText.count <= 500 else {
+                print("❌ 文本为空或超过500字符")
+                return
+            }
+
+            print("📖 选中文字: \(trimmedText.prefix(50))...")
+
+            // 未配置 API Key 时，打开 AI 提问窗口引导填写
+            if !LLMSettings.shared.isConfigured {
+                print("⚠️ 未配置 API Key，打开 AI 提问窗口引导填写")
+                AIChatController.shared.show(context: trimmedText)
+                return
+            }
+
+            // 获取鼠标位置
+            let mouseLocation = NSEvent.mouseLocation
+
+            // 显示 AI 释义弹窗
+            DefinitionPopupController.shared.show(text: trimmedText, at: mouseLocation)
+        }
+    }
+
     /// 获取来源信息（应用名称和 URL）
     private static func getSourceInfo() -> (source: String, url: String?) {
         guard let frontApp = NSWorkspace.shared.frontmostApplication else {
@@ -418,12 +552,13 @@ struct SettingsView: View {
                     Label("关于", systemImage: "info.circle")
                 }
         }
-        .frame(width: 450, height: 250)
+        .frame(width: 480, height: 420)
     }
 }
 
 struct GeneralSettingsView: View {
     @ObservedObject private var hotkeySettings = HotkeySettings.shared
+    @ObservedObject private var llmSettings = LLMSettings.shared
 
     var body: some View {
         Form {
@@ -434,8 +569,46 @@ struct GeneralSettingsView: View {
                     Text(hotkeySettings.displayString)
                         .foregroundColor(.secondary)
                 }
+                HStack {
+                    Text("选择文本提问")
+                    Spacer()
+                    KeyRecorderView(
+                        keyCode: $hotkeySettings.aiKeyCode,
+                        modifiers: $hotkeySettings.aiModifiers
+                    )
+                }
+                HStack {
+                    Text("空白提问")
+                    Spacer()
+                    KeyRecorderView(
+                        keyCode: $hotkeySettings.blankAskKeyCode,
+                        modifiers: $hotkeySettings.blankAskModifiers
+                    )
+                }
             } header: {
                 Text("快捷键")
+            }
+
+            Section {
+                Picker("供应商", selection: $llmSettings.provider) {
+                    ForEach(LLMProvider.allCases) { provider in
+                        Text(provider.displayName).tag(provider)
+                    }
+                }
+
+                HStack {
+                    Text("API Key")
+                    Spacer()
+                    SecureField("sk-...", text: $llmSettings.apiKey)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 220)
+                }
+
+                Text("API Key 通过 macOS 钥匙串加密存储，仅保存在本机")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } header: {
+                Text("AI 助手")
             }
 
             Section {

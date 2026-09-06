@@ -7,6 +7,7 @@ enum TranslatorError: LocalizedError {
     case screenshotFailed(reason: String)
     case wordBookError(reason: String)
     case permissionDenied(reason: String)
+    case aiFailed(reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -20,6 +21,8 @@ enum TranslatorError: LocalizedError {
             return "单词本错误: \(reason)"
         case .permissionDenied(let reason):
             return "权限被拒绝: \(reason)"
+        case .aiFailed(let reason):
+            return "AI 请求失败: \(reason)"
         }
     }
 }

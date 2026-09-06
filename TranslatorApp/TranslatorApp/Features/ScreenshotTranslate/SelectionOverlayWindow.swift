@@ -8,6 +8,7 @@ import AVFoundation
 enum SelectionAction {
     case saveToWordBook(String, String)  // 保存到单词本 (原文, 译文)
     case copied                           // 已复制到剪贴板
+    case aiAsk(String?)                   // 向 AI 提问（携带 OCR 文本，nil 表示直接提问）
     case cancelled                        // 取消
 }
 
@@ -17,6 +18,7 @@ final class SelectionOverlayWindow: NSPanel {
 
     private let completion: (SelectionAction) -> Void
     private let onTranslate: (CGRect) async throws -> (original: String, translated: String)
+    private let onExtractText: (CGRect) async throws -> String
     private let frozenScreenImage: CGImage?
     private var globalKeyboardMonitor: Any?
     private var localKeyboardMonitor: Any?
@@ -27,10 +29,12 @@ final class SelectionOverlayWindow: NSPanel {
     init(
         frozenScreenImage: CGImage?,
         onTranslate: @escaping (CGRect) async throws -> (original: String, translated: String),
+        onExtractText: @escaping (CGRect) async throws -> String,
         completion: @escaping (SelectionAction) -> Void
     ) {
         self.frozenScreenImage = frozenScreenImage
         self.onTranslate = onTranslate
+        self.onExtractText = onExtractText
         self.completion = completion
 
         let screenFrame = NSScreen.main?.frame ?? .zero
@@ -87,6 +91,9 @@ final class SelectionOverlayWindow: NSPanel {
             onSaveToWordBook: { [weak self] original, translated in
                 self?.finishWith(.saveToWordBook(original, translated))
             },
+            onAskAI: { [weak self] rect in
+                await self?.performAIAsk(rect: rect)
+            },
             onCancel: { [weak self] in
                 self?.finishWith(.cancelled)
             }
@@ -135,6 +142,15 @@ final class SelectionOverlayWindow: NSPanel {
         do {
             let result = try await onTranslate(rect)
             overlayView?.showTranslationResult(original: result.original, translated: result.translated)
+        } catch {
+            overlayView?.showError(error.localizedDescription)
+        }
+    }
+
+    private func performAIAsk(rect: CGRect) async {
+        do {
+            let text = try await onExtractText(rect)
+            finishWith(.aiAsk(text))
         } catch {
             overlayView?.showError(error.localizedDescription)
         }
@@ -283,6 +299,7 @@ private class OverlayView: NSView {
     private let onTranslate: (CGRect) async -> Void
     private let onCopy: (CGRect) -> Void
     private let onSaveToWordBook: (String, String) -> Void
+    private let onAskAI: (CGRect) async -> Void
     private let onCancel: () -> Void
 
     private let backgroundLayer = CALayer()       // 固定屏幕背景
@@ -295,10 +312,12 @@ private class OverlayView: NSView {
          onTranslate: @escaping (CGRect) async -> Void,
          onCopy: @escaping (CGRect) -> Void,
          onSaveToWordBook: @escaping (String, String) -> Void,
+         onAskAI: @escaping (CGRect) async -> Void,
          onCancel: @escaping () -> Void) {
         self.onTranslate = onTranslate
         self.onCopy = onCopy
         self.onSaveToWordBook = onSaveToWordBook
+        self.onAskAI = onAskAI
         self.onCancel = onCancel
         super.init(frame: frame)
 
@@ -557,6 +576,15 @@ private class OverlayView: NSView {
                 self.removeCurrentHostingView()
                 self.showMosaicToolbar()
             },
+            onAskAI: { [weak self] in
+                guard let self = self else { return }
+                self.state = .translating
+                self.showLoading()
+                let screenRect = self.convertToScreenCoordinates(rect)
+                Task {
+                    await self.onAskAI(screenRect)
+                }
+            },
             onCancel: { [weak self] in
                 self?.onCancel()
             }
@@ -771,6 +799,7 @@ private struct ToolbarView: View {
     let onTranslate: () -> Void
     let onCopy: () -> Void
     let onMosaic: () -> Void
+    let onAskAI: () -> Void
     let onCancel: () -> Void
 
     var body: some View {
@@ -802,6 +831,17 @@ private struct ToolbarView: View {
                 icon: "square.grid.3x3",
                 tooltip: "马赛克",
                 action: onMosaic
+            )
+
+            Divider()
+                .frame(height: 20)
+                .background(Color.white.opacity(0.3))
+
+            // 提取文字后向 AI 提问
+            FloatingActionButton(
+                icon: "text.magnifyingglass",
+                tooltip: "提取文字后提问",
+                action: onAskAI
             )
 
             Divider()

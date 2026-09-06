@@ -10,9 +10,11 @@ final class ScreenshotService: ScreenshotServiceProtocol {
 
     /// 显示选区窗口，返回用户的操作
     /// - Parameter onTranslate: 翻译回调，接收选区坐标，返回原文和译文
+    /// - Parameter onExtractText: 提取文字回调，接收选区坐标，返回 OCR 文本
     @MainActor
     func showSelectionAndCapture(
-        onTranslate: @escaping (CGRect) async throws -> (original: String, translated: String)
+        onTranslate: @escaping (CGRect) async throws -> (original: String, translated: String),
+        onExtractText: @escaping (CGRect) async throws -> String
     ) async -> SelectionAction {
         // 防止重复调用
         guard !isCapturing else {
@@ -36,6 +38,7 @@ final class ScreenshotService: ScreenshotServiceProtocol {
             let window = SelectionOverlayWindow(
                 frozenScreenImage: frozenImage,
                 onTranslate: onTranslate,
+                onExtractText: onExtractText,
                 completion: { [weak self] action in
                     // 确保在主线程执行
                     DispatchQueue.main.async {

@@ -15,6 +15,9 @@ final class AppState: ObservableObject {
     let screenshotTranslateViewModel: ScreenshotTranslateViewModel
 
     private var hotKeyRef: EventHotKeyRef?
+    private var aiHotKeyRef: EventHotKeyRef?
+    private var blankAskHotKeyRef: EventHotKeyRef?
+    private var defineHotKeyRef: EventHotKeyRef?
 
     nonisolated init() throws {
         // Initialize SwiftData - this is thread-safe
@@ -101,6 +104,18 @@ final class AppState: ObservableObject {
                         // 划词翻译快捷键
                         print("🎯 Translation hotkey triggered!")
                         AppDelegate.triggerTranslation()
+                    } else if hotkeyID.id == 3 {
+                        // 选择文本提问快捷键
+                        print("🤖 AI hotkey triggered!")
+                        AppDelegate.triggerAIQuestion()
+                    } else if hotkeyID.id == 4 {
+                        // 空白提问快捷键
+                        print("🤖 Blank AI hotkey triggered!")
+                        AppDelegate.triggerBlankAIQuestion()
+                    } else if hotkeyID.id == 5 {
+                        // 关键词释义快捷键
+                        print("📖 Definition hotkey triggered!")
+                        AppDelegate.triggerDefine()
                     }
                 }
                 return noErr
@@ -135,6 +150,18 @@ final class AppState: ObservableObject {
             UnregisterEventHotKey(ref)
             hotKeyRef = nil
         }
+        if let ref = aiHotKeyRef {
+            UnregisterEventHotKey(ref)
+            aiHotKeyRef = nil
+        }
+        if let ref = blankAskHotKeyRef {
+            UnregisterEventHotKey(ref)
+            blankAskHotKeyRef = nil
+        }
+        if let ref = defineHotKeyRef {
+            UnregisterEventHotKey(ref)
+            defineHotKeyRef = nil
+        }
 
         let settings = HotkeySettings.shared
         var hotKeyID = EventHotKeyID(signature: OSType(0x54535450), id: 1) // "TSTP"
@@ -151,17 +178,85 @@ final class AppState: ObservableObject {
 
         if regStatus != noErr {
             print("❌ Failed to register hotkey: \(regStatus)")
-            return
+        } else {
+            self.hotKeyRef = ref
+            print("✅ Global hotkey registered (\(settings.displayString))")
         }
 
-        self.hotKeyRef = ref
-        print("✅ Global hotkey registered (\(settings.displayString))")
+        // 注册 AI 提问热键
+        var aiRef: EventHotKeyRef?
+        let aiHotKeyID = EventHotKeyID(signature: OSType(0x54535450), id: 3) // "TSTP"
+        let aiRegStatus = RegisterEventHotKey(
+            settings.aiKeyCode,
+            settings.aiModifiers,
+            aiHotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &aiRef
+        )
+
+        if aiRegStatus != noErr {
+            print("❌ Failed to register AI hotkey: \(aiRegStatus)")
+        } else {
+            self.aiHotKeyRef = aiRef
+            print("✅ AI hotkey registered (\(settings.aiDisplayString))")
+        }
+
+        // 注册空白提问热键
+        var blankAskRef: EventHotKeyRef?
+        let blankAskHotKeyID = EventHotKeyID(signature: OSType(0x54535450), id: 4) // "TSTP"
+        let blankAskRegStatus = RegisterEventHotKey(
+            settings.blankAskKeyCode,
+            settings.blankAskModifiers,
+            blankAskHotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &blankAskRef
+        )
+
+        if blankAskRegStatus != noErr {
+            print("❌ Failed to register blank ask hotkey: \(blankAskRegStatus)")
+        } else {
+            self.blankAskHotKeyRef = blankAskRef
+            print("✅ Blank ask hotkey registered (\(settings.blankAskDisplayString))")
+        }
+
+        // 注册关键词释义热键
+        var defineRef: EventHotKeyRef?
+        let defineHotKeyID = EventHotKeyID(signature: OSType(0x54535450), id: 5) // "TSTP"
+        let defineRegStatus = RegisterEventHotKey(
+            settings.defineKeyCode,
+            settings.defineModifiers,
+            defineHotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &defineRef
+        )
+
+        if defineRegStatus != noErr {
+            print("❌ Failed to register define hotkey: \(defineRegStatus)")
+        } else {
+            self.defineHotKeyRef = defineRef
+            print("✅ Define hotkey registered (\(settings.defineDisplayString))")
+        }
     }
 
     func removeHotkeyMonitor() {
         if let ref = hotKeyRef {
             UnregisterEventHotKey(ref)
             hotKeyRef = nil
+        }
+        if let ref = aiHotKeyRef {
+            UnregisterEventHotKey(ref)
+            aiHotKeyRef = nil
+        }
+        if let ref = blankAskHotKeyRef {
+            UnregisterEventHotKey(ref)
+            blankAskHotKeyRef = nil
+        }
+        if let ref = defineHotKeyRef {
+            UnregisterEventHotKey(ref)
+            defineHotKeyRef = nil
         }
         NotificationCenter.default.removeObserver(self, name: .hotkeyChanged, object: nil)
     }
