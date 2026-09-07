@@ -233,11 +233,21 @@ private struct DefinitionContentView: View {
                 ChatMessage(role: .system, content: Self.systemPrompt),
                 ChatMessage(role: .user, content: text)
             ]
-            let result = try await service.chat(messages: messages)
-            await MainActor.run {
-                definition = result
-                isLoading = false
-                onDefinitionLoaded(result)
+            let stream = service.chatStream(messages: messages)
+            var full = ""
+            for try await delta in stream {
+                full += delta
+                await MainActor.run {
+                    definition = full
+                    isLoading = false
+                    onDefinitionLoaded(full)
+                }
+            }
+            if full.isEmpty {
+                await MainActor.run {
+                    errorMsg = "AI 未返回内容"
+                    isLoading = false
+                }
             }
         } catch {
             await MainActor.run {

@@ -51,7 +51,7 @@ struct ChatMessage: Identifiable {
 
 /// 大模型服务统一接口，划词提问与截图提问均复用此接口
 protocol LLMServiceProtocol {
-    func chat(messages: [ChatMessage]) async throws -> String
+    func chatStream(messages: [ChatMessage]) -> AsyncThrowingStream<String, Error>
 }
 
 // MARK: - DeepSeek 实现
@@ -70,42 +70,71 @@ final class DeepSeekService: LLMServiceProtocol {
         self.session = URLSession(configuration: .default)
     }
 
-    func chat(messages: [ChatMessage]) async throws -> String {
-        let url = baseURL.appendingPathComponent("chat/completions")
+    func chatStream(messages: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let url = baseURL.appendingPathComponent("chat/completions")
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "POST"
+                    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
-        let body: [String: Any] = [
-            "model": model,
-            "messages": messages.map { ["role": $0.role.rawValue, "content": $0.content] },
-            "stream": false
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+                    let body: [String: Any] = [
+                        "model": model,
+                        "messages": messages.map { ["role": $0.role.rawValue, "content": $0.content] },
+                        "stream": true
+                    ]
+                    request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let (data, response) = try await session.data(for: request)
+                    let (bytes, response) = try await session.bytes(for: request)
 
-        guard let http = response as? HTTPURLResponse else {
-            throw TranslatorError.aiFailed(reason: "无效的响应")
+                    guard let http = response as? HTTPURLResponse else {
+                        throw TranslatorError.aiFailed(reason: "无效的响应")
+                    }
+
+                    guard (200...299).contains(http.statusCode) else {
+                        var errorData = Data()
+                        for try await byte in bytes {
+                            errorData.append(byte)
+                        }
+                        let message = Self.extractError(from: errorData) ?? "HTTP \(http.statusCode)"
+                        throw TranslatorError.aiFailed(reason: message)
+                    }
+
+                    for try await line in bytes.lines {
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        guard trimmed.hasPrefix("data:") else { continue }
+
+                        let payload = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                        if payload == "[DONE]" {
+                            break
+                        }
+
+                        guard let data = payload.data(using: .utf8),
+                              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                              let choices = json["choices"] as? [[String: Any]],
+                              let first = choices.first,
+                              let delta = first["delta"] as? [String: Any],
+                              let content = delta["content"] as? String,
+                              !content.isEmpty else {
+                            continue
+                        }
+
+                        continuation.yield(content)
+                    }
+
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
         }
-
-        guard (200...299).contains(http.statusCode) else {
-            let message = Self.extractError(from: data) ?? "HTTP \(http.statusCode)"
-            throw TranslatorError.aiFailed(reason: message)
-        }
-
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let choices = json["choices"] as? [[String: Any]],
-              let first = choices.first,
-              let message = first["message"] as? [String: Any],
-              let content = message["content"] as? String,
-              !content.isEmpty else {
-            throw TranslatorError.aiFailed(reason: "无法解析响应")
-        }
-
-        return content
     }
 
     private static func extractError(from data: Data) -> String? {

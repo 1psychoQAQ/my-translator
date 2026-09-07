@@ -98,6 +98,7 @@ final class AIChatViewModel: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
     @Published var isLoading = false
+    @Published var streamingText: String = ""
     @Published var errorMessage: String?
 
     private let context: String?
@@ -127,16 +128,26 @@ final class AIChatViewModel: ObservableObject {
         inputText = ""
         errorMessage = nil
         messages.append(ChatMessage(role: .user, content: question))
+        streamingText = ""
         isLoading = true
 
         let requestMessages = buildMessages()
 
         Task {
             do {
-                let answer = try await LLMSettings.shared.makeService().chat(messages: requestMessages)
-                messages.append(ChatMessage(role: .assistant, content: answer))
+                let stream = LLMSettings.shared.makeService().chatStream(messages: requestMessages)
+                var full = ""
+                for try await delta in stream {
+                    full += delta
+                    streamingText = full
+                }
+                if !full.isEmpty {
+                    messages.append(ChatMessage(role: .assistant, content: full))
+                }
+                streamingText = ""
                 isLoading = false
             } catch {
+                streamingText = ""
                 isLoading = false
                 errorMessage = error.localizedDescription
             }
@@ -246,7 +257,11 @@ struct AIChatView: View {
                         MessageBubble(message: message)
                     }
 
-                    if viewModel.isLoading {
+                    if !viewModel.streamingText.isEmpty {
+                        MessageBubble(message: ChatMessage(role: .assistant, content: viewModel.streamingText))
+                    }
+
+                    if viewModel.isLoading && viewModel.streamingText.isEmpty {
                         HStack(spacing: 6) {
                             ProgressView().scaleEffect(0.6)
                             Text("思考中...")
@@ -268,6 +283,9 @@ struct AIChatView: View {
                 .padding(12)
             }
             .onChange(of: viewModel.messages.count) { _ in
+                scrollToBottom(proxy)
+            }
+            .onChange(of: viewModel.streamingText) { _ in
                 scrollToBottom(proxy)
             }
             .onChange(of: viewModel.isLoading) { _ in
